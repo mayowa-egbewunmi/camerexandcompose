@@ -3,6 +3,7 @@
 package com.sample.android.screens.photo
 
 import android.Manifest
+import androidx.activity.compose.BackHandler
 import androidx.camera.core.CameraInfo
 import androidx.camera.core.ImageCapture
 import androidx.compose.foundation.background
@@ -17,6 +18,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavHostController
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.PermissionState
 import com.sample.android.shared.PreviewState
@@ -24,8 +28,12 @@ import com.sample.android.R
 import com.sample.android.shared.composables.*
 
 @Composable
-internal fun PhotoScreen(viewModel: PhotoViewModel) {
-    val state by viewModel.state.collectAsState()
+internal fun PhotoScreen(
+    navHostController: NavHostController,
+    factory: ViewModelProvider.Factory,
+    photoViewModel: PhotoViewModel = viewModel(factory = factory)
+) {
+    val state by photoViewModel.state.collectAsState()
 
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -71,6 +79,10 @@ internal fun PhotoScreen(viewModel: PhotoViewModel) {
             onOkTapped = { /*viewModel.onEvent(FaceIDCameraViewModel.Event.PermissionsGranted)*/ },
             onSettingsTapped = { /*viewModel.onEvent(FaceIDCameraViewModel.Event.PermissionSettingsTapped)*/ },
         )
+    }
+
+    BackHandler {
+        navHostController.popBackStack()
     }
 
 }

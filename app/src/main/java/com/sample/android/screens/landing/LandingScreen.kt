@@ -1,4 +1,4 @@
-package com.sample.android.screens.entry
+package com.sample.android.screens.landing
 
 import androidx.compose.runtime.Composable
 
