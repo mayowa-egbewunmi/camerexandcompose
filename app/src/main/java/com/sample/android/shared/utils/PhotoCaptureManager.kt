@@ -1,4 +1,4 @@
-package com.sample.android.screens.photo
+package com.sample.android.shared.utils
 
 import android.content.Context
 import android.view.View
@@ -11,6 +11,7 @@ import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.runtime.compositionLocalOf
 import androidx.concurrent.futures.await
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
@@ -178,3 +179,5 @@ class PhotoCaptureManager private constructor(private val builder: Builder) :
         fun onError(exception: Exception)
     }
 }
+
+val LocalPhotoCaptureManager = compositionLocalOf<PhotoCaptureManager> { error("No capture manager found!") }

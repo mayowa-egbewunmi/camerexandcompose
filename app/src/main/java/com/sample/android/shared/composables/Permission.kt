@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalPermissionsApi::class)
+
 package com.sample.android.shared.composables
 
 import android.content.Intent
@@ -22,10 +24,163 @@ import com.google.accompanist.permissions.PermissionState
 import com.google.accompanist.permissions.rememberPermissionState
 import com.sample.android.shared.PermissionAction
 import com.sample.android.R
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
+
+class PermissionHandler {
+
+    private val _state = MutableStateFlow(State())
+    val state: StateFlow<State> = _state
+
+    fun onEvent(event: Event) {
+        when (event) {
+            Event.PermissionDenied -> onPermissionDenied()
+            Event.PermissionDismissTapped -> onPermissionDismissTapped()
+            Event.PermissionNeverAskAgain -> onPermissionNeverShowAgain()
+            Event.PermissionRationaleDisplayed -> onPermissionRationaleDisplayed()
+            Event.PermissionRationaleOkTapped -> onPermissionRationaleOkTapped()
+            Event.PermissionRequired -> onPermissionRequired()
+            Event.PermissionSettingsTapped -> onPermissionSettingsTapped()
+            Event.PermissionsGranted -> onPermissionGranted()
+            is Event.PermissionStateInitialized -> onPermissionStateInitialized(event.permissionState)
+        }
+    }
+
+    private fun onPermissionStateInitialized(permissionState: PermissionState) {
+        _state.update { it.copy(permissionState = permissionState) }
+    }
+
+    private fun onPermissionGranted() {
+        _state.update {
+            it.copy(
+                permissionRequestInFlight = false,
+                permissionAction = PermissionAction.NO_ACTION
+            )
+        }
+    }
+
+    private fun onPermissionDenied() {
+        _state.update {
+            it.copy(
+                permissionRequestInFlight = false,
+                permissionAction = PermissionAction.NO_ACTION
+            )
+        }
+    }
+
+    private fun onPermissionNeverShowAgain() {
+        _state.update {
+            it.copy(
+                permissionAction = PermissionAction.SHOW_NEVER_ASK_AGAIN,
+                permissionRequestInFlight = false
+            )
+        }
+    }
+
+    private fun onPermissionRequired() {
+        _state.value.permissionState?.let {
+            val permissionAction =
+                if (!it.hasPermission && !it.shouldShowRationale && !it.permissionRequested) {
+                    PermissionAction.REQUEST_PERMISSION
+                } else if (!it.hasPermission && it.shouldShowRationale) {
+                    PermissionAction.SHOW_RATIONALE
+                } else {
+                    PermissionAction.SHOW_NEVER_ASK_AGAIN
+                }
+            _state.update { it.copy(permissionAction = permissionAction) }
+        }
+    }
+
+    private fun onPermissionRationaleDisplayed() {
+        _state.update { it.copy(permissionRequestInFlight = true) }
+    }
+
+    private fun onPermissionRationaleOkTapped() {
+        _state.update {
+            it.copy(
+                permissionAction = PermissionAction.REQUEST_PERMISSION,
+                permissionRequestInFlight = true
+            )
+        }
+    }
+
+    private fun onPermissionDismissTapped() {
+        _state.update {
+            it.copy(
+                permissionAction = PermissionAction.NO_ACTION,
+                permissionRequestInFlight = false
+            )
+        }
+    }
+
+    private fun onPermissionSettingsTapped() {
+        _state.update {
+            it.copy(
+                permissionAction = PermissionAction.NO_ACTION,
+                permissionRequestInFlight = false
+            )
+        }
+    }
+
+    data class State(
+        val permissionState: PermissionState? = null,
+        val permissionAction: PermissionAction = PermissionAction.NO_ACTION,
+        val permissionRequestInFlight: Boolean = false
+    )
+
+    sealed class Event {
+        object PermissionDenied : Event()
+        object PermissionsGranted : Event()
+        object PermissionSettingsTapped : Event()
+        object PermissionNeverAskAgain : Event()
+        object PermissionDismissTapped : Event()
+        object PermissionRationaleDisplayed : Event()
+        object PermissionRationaleOkTapped : Event()
+        object PermissionRequired : Event()
+
+        data class PermissionStateInitialized(val permissionState: PermissionState) : Event()
+    }
+}
+
+@Composable
+fun AccompanistPermissionHandler(permission: String): PermissionHandler {
+
+    val permissionHandler = remember(permission) { PermissionHandler() }
+
+    val state by permissionHandler.state.collectAsState()
+
+    val permissionState = AccompanistPermissionHandler(
+        permission = permission,
+        onPermissionDenied = { permissionHandler.onEvent(PermissionHandler.Event.PermissionDenied) },
+        onPermissionGranted = { permissionHandler.onEvent(PermissionHandler.Event.PermissionsGranted) },
+        onPermissionNeverAskAgain = { permissionHandler.onEvent(PermissionHandler.Event.PermissionNeverAskAgain) }
+    )
+
+    LaunchedEffect(permissionState) {
+        permissionHandler.onEvent(
+            PermissionHandler.Event.PermissionStateInitialized(
+                permissionState
+            )
+        )
+    }
+
+    state.permissionState?.let {
+        HandlePermissionAction(
+            action = state.permissionAction,
+            permissionState = it,
+            rationaleText = R.string.permission_rationale,
+            neverAskAgainText = R.string.permission_rationale,
+            onOkTapped = { permissionHandler.onEvent(PermissionHandler.Event.PermissionsGranted) },
+            onSettingsTapped = { permissionHandler.onEvent(PermissionHandler.Event.PermissionSettingsTapped) },
+        )
+    }
+    return permissionHandler
+}
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
-fun AccompanistPermissionState(
+fun AccompanistPermissionHandler(
     permission: String,
     onPermissionGranted: () -> Unit,
     onPermissionDenied: () -> Unit,

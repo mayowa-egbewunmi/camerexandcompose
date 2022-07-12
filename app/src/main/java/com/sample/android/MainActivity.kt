@@ -1,10 +1,10 @@
 package com.sample.android
 
-import VideoScreen
+import RecordingScreen
 import android.os.Bundle
+import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
-import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -30,10 +30,11 @@ import com.sample.android.screens.landing.EntryScreen
 import com.sample.android.screens.photo.PhotoScreen
 import com.sample.android.screens.photo.PhotoViewModel
 import com.sample.android.screens.preview.PreviewScreen
+import com.sample.android.screens.recording.RecordingViewModel
 import com.sample.android.shared.utils.FileManager
 
 @OptIn(ExperimentalAnimationApi::class)
-class MainActivity : AppCompatActivity() {
+class MainActivity : ComponentActivity() {
 
     private val fileManager = FileManager(this)
 
@@ -41,6 +42,9 @@ class MainActivity : AppCompatActivity() {
         override fun <T : ViewModel?> create(modelClass: Class<T>): T {
             if (modelClass.isAssignableFrom(PhotoViewModel::class.java)) {
                 return PhotoViewModel(fileManager) as T
+            }
+            if (modelClass.isAssignableFrom(RecordingViewModel::class.java)) {
+                return RecordingViewModel(fileManager) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class")
         }
@@ -72,7 +76,11 @@ class MainActivity : AppCompatActivity() {
                             showMessage(it)
                         }
                     }
-                    screen(ScreenDestinations.Video.route) { VideoScreen() }
+                    screen(ScreenDestinations.Video.route) {
+                        RecordingScreen(navController, viewModelFactory) {
+                            showMessage(it)
+                        }
+                    }
                     screen(ScreenDestinations.Preview.route) { PreviewScreen() }
                 }
 

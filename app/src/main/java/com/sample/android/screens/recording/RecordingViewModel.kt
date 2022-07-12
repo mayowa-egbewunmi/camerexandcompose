@@ -1,6 +1,6 @@
 @file:OptIn(ExperimentalPermissionsApi::class)
 
-package com.sample.android.screens.photo
+package com.sample.android.screens.recording
 
 import androidx.camera.core.CameraInfo
 import androidx.camera.core.CameraSelector
@@ -18,7 +18,7 @@ import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.lang.IllegalArgumentException
 
-class PhotoViewModel constructor(private val fileManager: FileManager) : ViewModel() {
+class RecordingViewModel constructor(private val fileManager: FileManager) : ViewModel() {
 
     private val _state = MutableStateFlow(State())
     val state: StateFlow<State> = _state
@@ -43,7 +43,6 @@ class PhotoViewModel constructor(private val fileManager: FileManager) : ViewMod
         _state.update {
             when (_state.value.flashMode) {
                 ImageCapture.FLASH_MODE_OFF -> it.copy(flashMode = ImageCapture.FLASH_MODE_ON)
-                //ImageCapture.FLASH_MODE_AUTO -> it.copy(flashMode = ImageCapture.FLASH_MODE_ON)
                 ImageCapture.FLASH_MODE_ON -> it.copy(flashMode = ImageCapture.FLASH_MODE_OFF)
                 else -> it.copy(flashMode = ImageCapture.FLASH_MODE_OFF)
             }
@@ -127,7 +126,7 @@ class PhotoViewModel constructor(private val fileManager: FileManager) : ViewMod
 
     sealed class Event {
         data class CameraInitialized(val cameraLensInfo: HashMap<Int, CameraInfo>) :
-            PhotoViewModel.Event()
+            RecordingViewModel.Event()
 
         data class ImageCaptured(val imageResult: ImageCapture.OutputFileResults) : Event()
         data class Error(val exception: Exception) : Event()

@@ -1,10 +1,10 @@
 @file:OptIn(ExperimentalPermissionsApi::class)
 
-package com.sample.android.screens.photo
-
+import android.Manifest
 import androidx.camera.core.CameraInfo
 import androidx.camera.core.ImageCapture
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -16,82 +16,84 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.sample.android.navigateTo
+import com.sample.android.screens.recording.RecordingViewModel
 import com.sample.android.shared.PreviewState
 import com.sample.android.shared.composables.*
-import com.sample.android.shared.utils.LocalPhotoCaptureManager
+import com.sample.android.shared.composables.CaptureHeader
+import com.sample.android.shared.composables.RequestPermission
 import com.sample.android.shared.utils.LocalVideoCaptureManager
-import com.sample.android.shared.utils.PhotoCaptureManager
+import com.sample.android.shared.utils.VideoCaptureManager
 import kotlinx.coroutines.flow.collect
 
 @Composable
-internal fun PhotoScreen(
+internal fun RecordingScreen(
     navController: NavHostController,
     factory: ViewModelProvider.Factory,
-    photoViewModel: PhotoViewModel = viewModel(factory = factory),
+    recordingViewModel: RecordingViewModel = viewModel(factory = factory),
     onShowMessage: (message: Int) -> Unit
 ) {
-    val state by photoViewModel.state.collectAsState()
+    val state by recordingViewModel.state.collectAsState()
     val permissionHandler =
-        AccompanistPermissionHandler(permission = android.Manifest.permission.CAMERA)
+        AccompanistPermissionHandler(permission = Manifest.permission.CAMERA)
     val permissionHandlerState by permissionHandler.state.collectAsState()
 
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
     val listener = remember {
-        object : PhotoCaptureManager.PhotoListener {
+        object : VideoCaptureManager.RecordingListener {
             override fun onInitialised(cameraLensInfo: HashMap<Int, CameraInfo>) {
-                photoViewModel.onEvent(PhotoViewModel.Event.CameraInitialized(cameraLensInfo))
+                recordingViewModel.onEvent(RecordingViewModel.Event.CameraInitialized(cameraLensInfo))
             }
 
             override fun onSuccess(imageResult: ImageCapture.OutputFileResults) {
-                photoViewModel.onEvent(PhotoViewModel.Event.ImageCaptured(imageResult))
+                recordingViewModel.onEvent(RecordingViewModel.Event.ImageCaptured(imageResult))
             }
 
             override fun onError(exception: Exception) {
-                photoViewModel.onEvent(PhotoViewModel.Event.Error(exception))
+                recordingViewModel.onEvent(RecordingViewModel.Event.Error(exception))
             }
         }
     }
 
     val captureManager = remember {
-        PhotoCaptureManager.Builder(context)
+        VideoCaptureManager.Builder(context)
             .registerLifecycleOwner(lifecycleOwner)
             .create()
-            .apply { photoListener = listener }
+            .apply { recordingListener = listener }
     }
 
-    LaunchedEffect(photoViewModel) {
-        photoViewModel.effect.collect {
+    LaunchedEffect(recordingViewModel) {
+        recordingViewModel.effect.collect {
             when (it) {
-                is PhotoViewModel.Effect.NavigateTo -> navController.navigateTo(it.destination.route)
-                is PhotoViewModel.Effect.CaptureImage -> captureManager.takePhoto(it.filePath)
-                is PhotoViewModel.Effect.ShowMessage -> onShowMessage(it.message)
+                is RecordingViewModel.Effect.NavigateTo -> navController.navigateTo(it.destination.route)
+                is RecordingViewModel.Effect.CaptureImage -> captureManager.startRecording(it.filePath)
+                is RecordingViewModel.Effect.ShowMessage -> onShowMessage(it.message)
             }
         }
     }
 
-    CompositionLocalProvider(LocalPhotoCaptureManager provides captureManager) {
-        PhotoScreenContent(
+    CompositionLocalProvider(LocalVideoCaptureManager provides captureManager) {
+        VideoScreenContent(
             hasPermission = permissionHandlerState.permissionState?.hasPermission ?: false,
             cameraLens = state.lens,
             flashMode = state.flashMode,
             hasFlashUnit = state.lensInfo[state.lens]?.hasFlashUnit() ?: false,
             hasDualCamera = state.lensInfo.size > 1,
-            onEvent = photoViewModel::onEvent,
+            onEvent = recordingViewModel::onEvent,
             onPermissionEvent = permissionHandler::onEvent
         )
     }
 }
 
 @Composable
-private fun PhotoScreenContent(
+private fun VideoScreenContent(
     hasPermission: Boolean,
     cameraLens: Int?,
     @ImageCapture.FlashMode flashMode: Int,
     hasFlashUnit: Boolean,
     hasDualCamera: Boolean,
-    onEvent: (PhotoViewModel.Event) -> Unit,
+    onEvent: (RecordingViewModel.Event) -> Unit,
     onPermissionEvent: (PermissionHandler.Event) -> Unit
 ) {
     if (!hasPermission) {
@@ -107,14 +109,16 @@ private fun PhotoScreenContent(
                     modifier = Modifier.align(Alignment.TopStart),
                     showFlashIcon = hasFlashUnit,
                     flashMode = flashMode,
-                    onFlashTapped = { onEvent(PhotoViewModel.Event.FlashTapped) },
-                    onCloseTapped = { onEvent(PhotoViewModel.Event.CloseTapped) }
+                    onFlashTapped = { onEvent(RecordingViewModel.Event.FlashTapped) },
+                    onCloseTapped = { onEvent(RecordingViewModel.Event.CloseTapped) }
                 )
-                CaptureFooter(
+                RecordFooter(
                     modifier = Modifier.align(Alignment.BottomStart),
+                    recording = false,
                     showFlipIcon = hasDualCamera,
-                    onCaptureTapped = { onEvent(PhotoViewModel.Event.CaptureTapped) },
-                    onFlipTapped = { onEvent(PhotoViewModel.Event.FlipTapped) }
+                    onRecordTapped = { onEvent(RecordingViewModel.Event.CaptureTapped) },
+                    onStopTapped = {},
+                    onFlipTapped = { onEvent(RecordingViewModel.Event.FlipTapped) }
                 )
             }
         }
@@ -123,12 +127,8 @@ private fun PhotoScreenContent(
 
 
 @Composable
-private fun CameraPreview(
-    lens: Int,
-    @ImageCapture.FlashMode flashMode: Int
-) {
+private fun CameraPreview(lens: Int, @ImageCapture.FlashMode flashMode: Int) {
     val captureManager = LocalVideoCaptureManager.current
-
     Box {
         AndroidView(
             factory = {

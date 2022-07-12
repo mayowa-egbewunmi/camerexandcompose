@@ -4,11 +4,15 @@ import androidx.camera.core.CameraInfo
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
+import androidx.compose.material.Button
 import androidx.compose.material.IconButton
+import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.sample.android.R
 
@@ -137,4 +141,81 @@ fun CameraFlashIcon(modifier: Modifier = Modifier, @ImageCapture.FlashMode flash
             )
         }
     )
+}
+
+@Composable
+internal fun RequestPermission(onClick: () -> Unit) {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Button(onClick = onClick) {
+            Text(text = stringResource(id = R.string.request_permission))
+        }
+    }
+}
+
+@Composable
+internal fun CaptureHeader(
+    modifier: Modifier = Modifier,
+    showFlashIcon: Boolean,
+    flashMode: Int,
+    onFlashTapped: () -> Unit,
+    onCloseTapped: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .wrapContentHeight()
+            .padding(8.dp)
+            .then(modifier)
+    ) {
+        if (showFlashIcon) {
+            CameraFlashIcon(flashMode = flashMode, onTapped = onFlashTapped)
+        }
+        CameraCloseIcon(onTapped = onCloseTapped, modifier = Modifier.align(Alignment.TopEnd))
+    }
+}
+
+@Composable
+internal fun CaptureFooter(
+    modifier: Modifier = Modifier,
+    showFlipIcon: Boolean,
+    onCaptureTapped: () -> Unit,
+    onFlipTapped: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 24.dp)
+            .then(modifier)
+    ) {
+        CameraCaptureIcon(modifier = Modifier.align(Alignment.Center), onTapped = onCaptureTapped)
+        if (showFlipIcon) {
+            CameraFlipIcon(modifier = Modifier.align(Alignment.CenterEnd), onTapped = onFlipTapped)
+        }
+    }
+}
+
+@Composable
+internal fun RecordFooter(
+    modifier: Modifier = Modifier,
+    recording: Boolean,
+    showFlipIcon: Boolean,
+    onRecordTapped: () -> Unit,
+    onStopTapped: () -> Unit,
+    onFlipTapped: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 24.dp)
+            .then(modifier)
+    ) {
+        if (recording) {
+            CameraStopIcon(modifier = Modifier.align(Alignment.Center), onTapped = onStopTapped)
+        } else {
+            CameraRecordIcon(modifier = Modifier.align(Alignment.Center), onTapped = onRecordTapped)
+        }
+        if (showFlipIcon) {
+            CameraFlipIcon(modifier = Modifier.align(Alignment.CenterEnd), onTapped = onFlipTapped)
+        }
+    }
 }
