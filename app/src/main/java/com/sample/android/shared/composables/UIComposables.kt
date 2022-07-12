@@ -1,10 +1,15 @@
 package com.sample.android.shared.composables
 
+import androidx.camera.core.CameraInfo
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageCapture
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.dp
 import com.sample.android.R
 
 @Composable
@@ -15,6 +20,7 @@ fun CameraCaptureIcon(modifier: Modifier, onTapped: () -> Unit) {
         onClick = { onTapped() },
         content = {
             Image(
+                modifier = Modifier.size(60.dp),
                 painter = painterResource(id = R.drawable.ic_capture),
                 contentDescription = null
             )
@@ -113,19 +119,20 @@ fun CameraCloseIcon(modifier: Modifier = Modifier, onTapped: () -> Unit) {
 }
 
 @Composable
-fun CameraFlashIcon(modifier: Modifier = Modifier, flashEnabled: Boolean, onTapped: () -> Unit) {
+fun CameraFlashIcon(modifier: Modifier = Modifier, @ImageCapture.FlashMode flashMode: Int, onTapped: () -> Unit) {
     IconButton(
         modifier = Modifier
             .then(modifier),
         onClick = { onTapped() },
         content = {
-            val flashDrawable = if (flashEnabled) {
-                R.drawable.ic_flash_on
-            } else {
-                R.drawable.ic_flash_off
+            val drawable = when(flashMode) {
+                ImageCapture.FLASH_MODE_AUTO -> R.drawable.ic_flash_on
+                ImageCapture.FLASH_MODE_OFF -> R.drawable.ic_flash_off
+                ImageCapture.FLASH_MODE_ON -> R.drawable.ic_flash_on
+                else -> R.drawable.ic_flash_off
             }
             Image(
-                painter = painterResource(id = flashDrawable),
+                painter = painterResource(id = drawable),
                 contentDescription = ""
             )
         }

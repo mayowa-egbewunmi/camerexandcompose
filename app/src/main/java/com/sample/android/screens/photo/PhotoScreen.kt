@@ -3,19 +3,17 @@
 package com.sample.android.screens.photo
 
 import android.Manifest
-import androidx.activity.compose.BackHandler
 import androidx.camera.core.CameraInfo
 import androidx.camera.core.ImageCapture
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.Button
 import androidx.compose.material.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.ViewModelProvider
@@ -25,13 +23,16 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.PermissionState
 import com.sample.android.shared.PreviewState
 import com.sample.android.R
+import com.sample.android.navigateTo
 import com.sample.android.shared.composables.*
+import kotlinx.coroutines.flow.collect
 
 @Composable
 internal fun PhotoScreen(
-    navHostController: NavHostController,
+    navController: NavHostController,
     factory: ViewModelProvider.Factory,
-    photoViewModel: PhotoViewModel = viewModel(factory = factory)
+    photoViewModel: PhotoViewModel = viewModel(factory = factory),
+    onShowMessage: (message: Int) -> Unit
 ) {
     val state by photoViewModel.state.collectAsState()
 
@@ -41,13 +42,13 @@ internal fun PhotoScreen(
     val listener = remember {
         object : PhotoCaptureManager.PhotoListener {
             override fun onInitialised(cameraLensInfo: HashMap<Int, CameraInfo>) {
-//                viewModel.onEvent(FaceIDCameraViewModel.Event.CameraInitialized(cameraLensInfo))
+                photoViewModel.onEvent(PhotoViewModel.Event.CameraInitialized(cameraLensInfo))
             }
             override fun onSuccess(imageResult: ImageCapture.OutputFileResults) {
-//                viewModel.onEvent(FaceIDCameraViewModel.Event.ImageCaptured(imageResult))
+                photoViewModel.onEvent(PhotoViewModel.Event.ImageCaptured(imageResult))
             }
             override fun onError(exception: Exception) {
-//                viewModel.onEvent(FaceIDCameraViewModel.Event.Error(exception))
+                photoViewModel.onEvent(PhotoViewModel.Event.Error(exception))
             }
         }
     }
@@ -61,13 +62,13 @@ internal fun PhotoScreen(
 
     val permissionState = AccompanistPermissionState(
         permission = Manifest.permission.CAMERA,
-        onPermissionDenied = { /*viewModel.onEvent(FaceIDCameraViewModel.Event.PermissionDenied)*/ },
-        onPermissionGranted = { /*viewModel.onEvent(FaceIDCameraViewModel.Event.PermissionsGranted)*/ },
-        onPermissionNeverAskAgain = { /*viewModel.onEvent(FaceIDCameraViewModel.Event.PermissionNeverAskAgain)*/ }
+        onPermissionDenied = { photoViewModel.onEvent(PhotoViewModel.Event.PermissionDenied) },
+        onPermissionGranted = { photoViewModel.onEvent(PhotoViewModel.Event.PermissionsGranted) },
+        onPermissionNeverAskAgain = { photoViewModel.onEvent(PhotoViewModel.Event.PermissionNeverAskAgain) }
     )
 
     LaunchedEffect(permissionState) {
-//        viewModel.onEvent(FaceIDCameraViewModel.Event.PermissionStateInitialized(permissionState))
+        photoViewModel.onEvent(PhotoViewModel.Event.PermissionStateInitialized(permissionState))
     }
 
     state.permissionState?.let {
@@ -76,51 +77,60 @@ internal fun PhotoScreen(
             permissionState = it,
             rationaleText = R.string.permission_rationale,
             neverAskAgainText = R.string.permission_rationale,
-            onOkTapped = { /*viewModel.onEvent(FaceIDCameraViewModel.Event.PermissionsGranted)*/ },
-            onSettingsTapped = { /*viewModel.onEvent(FaceIDCameraViewModel.Event.PermissionSettingsTapped)*/ },
+            onOkTapped = { photoViewModel.onEvent(PhotoViewModel.Event.PermissionsGranted) },
+            onSettingsTapped = { photoViewModel.onEvent(PhotoViewModel.Event.PermissionSettingsTapped) },
         )
     }
 
-    BackHandler {
-        navHostController.popBackStack()
+    LaunchedEffect(photoViewModel) {
+        photoViewModel.effect.collect {
+            when (it) {
+                is PhotoViewModel.Effect.NavigateTo -> navController.navigateTo(it.destination.route)
+                is PhotoViewModel.Effect.CaptureImage -> captureManager.takePhoto(it.filePath)
+                is PhotoViewModel.Effect.ShowMessage -> onShowMessage(it.message)
+            }
+        }
     }
 
+    PhotoScreenContent(
+        cameraLens = state.lens,
+        flashMode = state.flashMode,
+        hasFlashUnit = state.lensInfo[state.lens]?.hasFlashUnit() ?: false,
+        hasDualCamera = state.lensInfo.size > 1,
+        captureManager = captureManager,
+        permissionState = state.permissionState,
+        onEvent = photoViewModel::onEvent
+    )
 }
 
 @Composable
 private fun PhotoScreenContent(
-    flashSupported: Boolean,
-    flashMode: Int,
-    flipSupported: Boolean,
     cameraLens: Int?,
+    @ImageCapture.FlashMode flashMode: Int,
+    hasFlashUnit: Boolean,
+    hasDualCamera: Boolean,
     captureManager: PhotoCaptureManager,
     permissionState: PermissionState?,
     onEvent: (PhotoViewModel.Event) -> Unit
 ) {
     if (permissionState?.hasPermission != true) {
-        PermissionRequestScreen(onClick = { /*onEvent(PhotoViewModel.Event.PermissionRequired)*/ })
+        PermissionRequestScreen(onClick = { onEvent(PhotoViewModel.Event.PermissionRequired) })
     } else {
-        Column(modifier = Modifier.fillMaxSize()) {
-            CaptureHeader(
-                flashSupported = flashSupported,
-                flashMode = flashMode,
-                onFlashTapped = { /*onEvent(FaceIDCameraViewModel.Event.FlashTapped)*/ },
-                onCloseTapped = { /*onEvent(FaceIDCameraViewModel.Event.CloseTapped)*/ }
-            )
-            Spacer(modifier = Modifier
-                .height(16.dp)
-                .fillMaxWidth()
-                .background(color = Color.Black))
-            Column(modifier = Modifier
-                .weight(1f)
-                .defaultMinSize(minHeight = 300.dp)) {
-                cameraLens?.let { FaceCapturePreview(captureManager = captureManager, lens = it, flashMode = flashMode) }
-            }
+        Box(modifier = Modifier.fillMaxSize()) {
             cameraLens?.let {
+                FaceCapturePreview(captureManager = captureManager, lens = it, flashMode = flashMode)
+                CaptureHeader(
+                    modifier = Modifier.align(Alignment.TopStart),
+                    showFlashIcon = hasFlashUnit,
+                    flashMode = flashMode,
+                    onFlashTapped = { onEvent(PhotoViewModel.Event.FlashTapped) },
+                    onCloseTapped = { onEvent(PhotoViewModel.Event.CloseTapped) }
+                )
                 CaptureFooter(
-                    flipSupported = flipSupported,
-                    onCaptureTapped = { /*onEvent(FaceIDCameraViewModel.Event.CaptureTapped)*/ },
-                    onFlipTapped = { /*onEvent(FaceIDCameraViewModel.Event.FlipCameraLensTapped)*/ }
+                    modifier = Modifier.align(Alignment.BottomStart),
+                    showFlipIcon = hasDualCamera,
+                    onCaptureTapped = { onEvent(PhotoViewModel.Event.CaptureTapped) },
+                    onFlipTapped = { onEvent(PhotoViewModel.Event.FlipTapped) }
                 )
             }
         }
@@ -130,36 +140,36 @@ private fun PhotoScreenContent(
 @Composable
 private fun PermissionRequestScreen(onClick: () -> Unit) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Button(onClick = { /*TODO*/ }) {
-            Text(text = "<Request Permission>")
+        Button(onClick = onClick) {
+            Text(text = stringResource(id = R.string.request_permission))
         }
     }
 }
 
 @Composable
-private fun CaptureHeader(modifier: Modifier = Modifier, flashSupported: Boolean, flashMode: Int, onFlashTapped: () -> Unit, onCloseTapped: () -> Unit) {
+private fun CaptureHeader(modifier: Modifier = Modifier, showFlashIcon: Boolean, flashMode: Int, onFlashTapped: () -> Unit, onCloseTapped: () -> Unit) {
     Box(modifier = Modifier
         .fillMaxWidth()
         .wrapContentHeight()
-        .background(Color.Black)
         .padding(8.dp)
         .then(modifier)
     ) {
-        if (flashSupported) {
-            CameraFlashIcon(flashEnabled =  flashMode == ImageCapture.FLASH_MODE_ON, onTapped = onFlashTapped)
+        if (showFlashIcon) {
+            CameraFlashIcon(flashMode =  flashMode, onTapped = onFlashTapped)
         }
         CameraCloseIcon(onTapped = onCloseTapped, modifier = Modifier.align(Alignment.TopEnd))
     }
 }
 
 @Composable
-private fun CaptureFooter(flipSupported: Boolean, onCaptureTapped: () -> Unit, onFlipTapped: () -> Unit) {
+private fun CaptureFooter(modifier: Modifier = Modifier, showFlipIcon: Boolean, onCaptureTapped: () -> Unit, onFlipTapped: () -> Unit) {
     Box(modifier = Modifier
         .fillMaxWidth()
-        .background(Color.Black)
-        .padding(horizontal = 16.dp, vertical = 24.dp)) {
+        .padding(horizontal = 8.dp, vertical = 24.dp)
+        .then(modifier)
+    ) {
         CameraCaptureIcon(modifier = Modifier.align(Alignment.Center), onTapped = onCaptureTapped)
-        if (flipSupported) {
+        if (showFlipIcon) {
             CameraFlipIcon(modifier = Modifier.align(Alignment.CenterEnd), onTapped = onFlipTapped)
         }
     }

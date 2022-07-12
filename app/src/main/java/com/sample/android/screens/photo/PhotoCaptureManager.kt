@@ -22,7 +22,8 @@ import com.sample.android.shared.PreviewState
 import timber.log.Timber
 import java.io.File
 
-class PhotoCaptureManager private constructor(private val builder: Builder) : LifecycleEventObserver {
+class PhotoCaptureManager private constructor(private val builder: Builder) :
+    LifecycleEventObserver {
 
     private lateinit var cameraProviderFuture: ListenableFuture<ProcessCameraProvider>
     private lateinit var imageCapture: ImageCapture
@@ -71,7 +72,10 @@ class PhotoCaptureManager private constructor(private val builder: Builder) : Li
      * With this, we can determine if a camera lens is available or not,
      * and what capabilities the lens can support e.g flash support
      */
-    private fun queryCameraInfo(lifecycleOwner: LifecycleOwner, cameraProvider: ProcessCameraProvider) {
+    private fun queryCameraInfo(
+        lifecycleOwner: LifecycleOwner,
+        cameraProvider: ProcessCameraProvider
+    ) {
         val cameraLensInfo = HashMap<Int, CameraInfo>()
         arrayOf(CameraSelector.LENS_FACING_BACK, CameraSelector.LENS_FACING_FRONT).forEach { lens ->
             val cameraSelector = CameraSelector.Builder().requireLensFacing(lens).build()
@@ -117,7 +121,12 @@ class PhotoCaptureManager private constructor(private val builder: Builder) : Li
                 .setFlashMode(previewState.flashMode)
                 .build()
 
-            cameraProvider.bindToLifecycle(getLifeCycleOwner(), cameraSelector, preview, imageCapture)
+            cameraProvider.bindToLifecycle(
+                getLifeCycleOwner(),
+                cameraSelector,
+                preview,
+                imageCapture
+            )
         }
         return cameraPreview
     }
@@ -134,16 +143,17 @@ class PhotoCaptureManager private constructor(private val builder: Builder) : Li
         val file = File(filePath)
         val outputFileOptions = ImageCapture.OutputFileOptions.Builder(file).build()
 
-        imageCapture.takePicture(outputFileOptions, ContextCompat.getMainExecutor(getContext()), object : ImageCapture.OnImageSavedCallback {
-            override fun onError(error: ImageCaptureException) {
-                Timber.e(error)
-                photoListener.onError(error)
-            }
+        imageCapture.takePicture(outputFileOptions, ContextCompat.getMainExecutor(getContext()),
+            object : ImageCapture.OnImageSavedCallback {
+                override fun onError(error: ImageCaptureException) {
+                    Timber.e(error)
+                    photoListener.onError(error)
+                }
 
-            override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
-                photoListener.onSuccess(outputFileResults)
-            }
-        })
+                override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
+                    photoListener.onSuccess(outputFileResults)
+                }
+            })
     }
 
     class Builder(val context: Context) {
