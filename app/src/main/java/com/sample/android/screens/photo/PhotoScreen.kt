@@ -19,7 +19,6 @@ import com.sample.android.navigateTo
 import com.sample.android.shared.PreviewState
 import com.sample.android.shared.composables.*
 import com.sample.android.shared.utils.LocalPhotoCaptureManager
-import com.sample.android.shared.utils.LocalVideoCaptureManager
 import com.sample.android.shared.utils.PhotoCaptureManager
 import kotlinx.coroutines.flow.collect
 
@@ -100,6 +99,7 @@ private fun PhotoScreenContent(
         Box(modifier = Modifier.fillMaxSize()) {
             cameraLens?.let {
                 CameraPreview(
+
                     lens = it,
                     flashMode = flashMode
                 )
@@ -127,7 +127,7 @@ private fun CameraPreview(
     lens: Int,
     @ImageCapture.FlashMode flashMode: Int
 ) {
-    val captureManager = LocalVideoCaptureManager.current
+    val captureManager = LocalPhotoCaptureManager.current
 
     Box {
         AndroidView(

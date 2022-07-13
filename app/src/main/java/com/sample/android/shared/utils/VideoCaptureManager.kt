@@ -84,7 +84,6 @@ class VideoCaptureManager private constructor(private val builder: Builder) :
                     cameraLensInfo[CameraSelector.LENS_FACING_FRONT] = camera.cameraInfo
                 }
             }
-            cameraProvider.unbindAll() //Unbind camera provider when query is completed
         }
         recordingListener.onInitialised(cameraLensInfo)
     }

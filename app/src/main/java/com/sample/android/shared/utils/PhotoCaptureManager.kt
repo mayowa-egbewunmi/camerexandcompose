@@ -3,12 +3,7 @@ package com.sample.android.shared.utils
 import android.content.Context
 import android.view.View
 import android.view.ViewGroup
-import androidx.camera.core.AspectRatio
-import androidx.camera.core.CameraInfo
-import androidx.camera.core.CameraSelector
-import androidx.camera.core.ImageCapture
-import androidx.camera.core.ImageCaptureException
-import androidx.camera.core.Preview
+import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.runtime.compositionLocalOf
@@ -88,7 +83,6 @@ class PhotoCaptureManager private constructor(private val builder: Builder) :
                     cameraLensInfo[CameraSelector.LENS_FACING_FRONT] = camera.cameraInfo
                 }
             }
-            cameraProvider.unbindAll() //Unbind camera provider when query is completed
         }
         photoListener.onInitialised(cameraLensInfo)
     }
@@ -101,11 +95,10 @@ class PhotoCaptureManager private constructor(private val builder: Builder) :
      * Bind the selected camera and any use cases to the lifecycle.
      * Connect the Preview to the PreviewView.
      */
+    @Synchronized
     private fun showPreview(previewState: PreviewState, cameraPreview: PreviewView): View {
         getLifeCycleOwner().lifecycleScope.launchWhenResumed {
             val cameraProvider = cameraProviderFuture.await()
-            cameraProvider.unbindAll()
-
             //Select a camera lens
             val cameraSelector: CameraSelector = CameraSelector.Builder()
                 .requireLensFacing(previewState.cameraLens)
@@ -122,6 +115,7 @@ class PhotoCaptureManager private constructor(private val builder: Builder) :
                 .setFlashMode(previewState.flashMode)
                 .build()
 
+            cameraProvider.unbindAll()
             cameraProvider.bindToLifecycle(
                 getLifeCycleOwner(),
                 cameraSelector,
