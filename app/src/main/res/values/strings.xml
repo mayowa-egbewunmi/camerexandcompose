@@ -9,5 +9,5 @@
     <string name="take_picture">Take picture</string>
     <string name="request_permission">Request permission</string>
     <string name="something_went_wrong">Something went wrong</string>
-    <string name="image_captured">Image captured</string>
+    <string name="captured">Captured</string>
 </resources>

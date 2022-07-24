@@ -1,6 +1,5 @@
 package com.sample.android
 
-import RecordingScreen
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -29,7 +28,8 @@ import com.google.android.material.snackbar.Snackbar
 import com.sample.android.screens.landing.EntryScreen
 import com.sample.android.screens.photo.PhotoScreen
 import com.sample.android.screens.photo.PhotoViewModel
-import com.sample.android.screens.preview.PreviewScreen
+import com.sample.android.screens.playback.PlaybackScreen
+import com.sample.android.screens.recording.RecordingScreen
 import com.sample.android.screens.recording.RecordingViewModel
 import com.sample.android.shared.utils.FileManager
 
@@ -81,7 +81,7 @@ class MainActivity : ComponentActivity() {
                             showMessage(it)
                         }
                     }
-                    screen(ScreenDestinations.Preview.route) { PreviewScreen() }
+                    screen(ScreenDestinations.Preview.route) { PlaybackScreen(navController) }
                 }
 
                 BackHandler {

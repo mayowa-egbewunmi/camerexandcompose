@@ -1,10 +1,12 @@
-@file:OptIn(ExperimentalPermissionsApi::class)
+package com.sample.android.screens.recording
 
 import android.Manifest
+import android.net.Uri
 import androidx.camera.core.CameraInfo
-import androidx.camera.core.ImageCapture
+import androidx.camera.core.TorchState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -16,7 +18,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.sample.android.navigateTo
-import com.sample.android.screens.recording.RecordingViewModel
 import com.sample.android.shared.PreviewState
 import com.sample.android.shared.composables.*
 import com.sample.android.shared.composables.CaptureHeader
@@ -25,6 +26,7 @@ import com.sample.android.shared.utils.LocalVideoCaptureManager
 import com.sample.android.shared.utils.VideoCaptureManager
 import kotlinx.coroutines.flow.collect
 
+@OptIn(ExperimentalPermissionsApi::class)
 @Composable
 internal fun RecordingScreen(
     navController: NavHostController,
@@ -46,12 +48,24 @@ internal fun RecordingScreen(
                 recordingViewModel.onEvent(RecordingViewModel.Event.CameraInitialized(cameraLensInfo))
             }
 
-            override fun onSuccess(imageResult: ImageCapture.OutputFileResults) {
-                recordingViewModel.onEvent(RecordingViewModel.Event.ImageCaptured(imageResult))
+            override fun recordingStarted() {
+                recordingViewModel.onEvent(RecordingViewModel.Event.RecordingStarted)
             }
 
-            override fun onError(exception: Exception) {
-                recordingViewModel.onEvent(RecordingViewModel.Event.Error(exception))
+            override fun recordingPaused() {
+                recordingViewModel.onEvent(RecordingViewModel.Event.RecordingPaused)
+            }
+
+            override fun onProgress(progress: Int) {
+                recordingViewModel.onEvent(RecordingViewModel.Event.OnProgress(progress))
+            }
+
+            override fun recordingCompleted(outputUri: Uri) {
+                recordingViewModel.onEvent(RecordingViewModel.Event.RecordingEnded(outputUri))
+            }
+
+            override fun onError(throwable: Throwable?) {
+                recordingViewModel.onEvent(RecordingViewModel.Event.Error(throwable))
             }
         }
     }
@@ -67,8 +81,11 @@ internal fun RecordingScreen(
         recordingViewModel.effect.collect {
             when (it) {
                 is RecordingViewModel.Effect.NavigateTo -> navController.navigateTo(it.destination.route)
-                is RecordingViewModel.Effect.CaptureImage -> captureManager.startRecording(it.filePath)
+                is RecordingViewModel.Effect.RecordVideo -> captureManager.startRecording(it.filePath)
                 is RecordingViewModel.Effect.ShowMessage -> onShowMessage(it.message)
+                RecordingViewModel.Effect.PauseRecording -> captureManager.pauseRecording()
+                RecordingViewModel.Effect.ResumeRecording -> captureManager.resumeRecording()
+                RecordingViewModel.Effect.StopRecording -> captureManager.stopRecording()
             }
         }
     }
@@ -77,9 +94,11 @@ internal fun RecordingScreen(
         VideoScreenContent(
             hasPermission = permissionHandlerState.permissionState?.hasPermission ?: false,
             cameraLens = state.lens,
-            flashMode = state.flashMode,
+            torchState = state.torchState,
             hasFlashUnit = state.lensInfo[state.lens]?.hasFlashUnit() ?: false,
             hasDualCamera = state.lensInfo.size > 1,
+            recordedLength = state.recordedLength,
+            recordingStatus = state.recordingStatus,
             onEvent = recordingViewModel::onEvent,
             onPermissionEvent = permissionHandler::onEvent
         )
@@ -90,9 +109,11 @@ internal fun RecordingScreen(
 private fun VideoScreenContent(
     hasPermission: Boolean,
     cameraLens: Int?,
-    @ImageCapture.FlashMode flashMode: Int,
+    @TorchState.State torchState: Int,
     hasFlashUnit: Boolean,
     hasDualCamera: Boolean,
+    recordedLength: Int,
+    recordingStatus: RecordingViewModel.RecordingStatus,
     onEvent: (RecordingViewModel.Event) -> Unit,
     onPermissionEvent: (PermissionHandler.Event) -> Unit
 ) {
@@ -103,21 +124,31 @@ private fun VideoScreenContent(
             cameraLens?.let {
                 CameraPreview(
                     lens = it,
-                    flashMode = flashMode
+                    torchState = torchState
                 )
-                CaptureHeader(
-                    modifier = Modifier.align(Alignment.TopStart),
-                    showFlashIcon = hasFlashUnit,
-                    flashMode = flashMode,
-                    onFlashTapped = { onEvent(RecordingViewModel.Event.FlashTapped) },
-                    onCloseTapped = { onEvent(RecordingViewModel.Event.CloseTapped) }
-                )
+                if (recordingStatus == RecordingViewModel.RecordingStatus.Idle) {
+                    CaptureHeader(
+                        modifier = Modifier.align(Alignment.TopStart),
+                        showFlashIcon = hasFlashUnit,
+                        flashMode = torchState,
+                        onFlashTapped = { onEvent(RecordingViewModel.Event.FlashTapped) },
+                        onCloseTapped = { onEvent(RecordingViewModel.Event.CloseTapped) }
+                    )
+                }
+                if (recordedLength > 0) {
+                    Timer(
+                        modifier = Modifier.align(Alignment.TopCenter),
+                        seconds = recordedLength
+                    )
+                }
                 RecordFooter(
                     modifier = Modifier.align(Alignment.BottomStart),
-                    recording = false,
+                    recordingStatus = recordingStatus,
                     showFlipIcon = hasDualCamera,
-                    onRecordTapped = { onEvent(RecordingViewModel.Event.CaptureTapped) },
-                    onStopTapped = {},
+                    onRecordTapped = { onEvent(RecordingViewModel.Event.RecordTapped) },
+                    onPauseTapped = { onEvent(RecordingViewModel.Event.PauseTapped) },
+                    onResumeTapped = { onEvent(RecordingViewModel.Event.ResumeTapped) },
+                    onStopTapped = { onEvent(RecordingViewModel.Event.StopTapped) },
                     onFlipTapped = { onEvent(RecordingViewModel.Event.FlipTapped) }
                 )
             }
@@ -125,9 +156,8 @@ private fun VideoScreenContent(
     }
 }
 
-
 @Composable
-private fun CameraPreview(lens: Int, @ImageCapture.FlashMode flashMode: Int) {
+private fun CameraPreview(lens: Int, @TorchState.State torchState: Int) {
     val captureManager = LocalVideoCaptureManager.current
     Box {
         AndroidView(
@@ -135,17 +165,15 @@ private fun CameraPreview(lens: Int, @ImageCapture.FlashMode flashMode: Int) {
                 captureManager.showPreview(
                     PreviewState(
                         cameraLens = lens,
-                        flashMode = flashMode
+                        torchState = torchState
                     )
                 )
             },
             modifier = Modifier.fillMaxSize(),
             update = {
                 captureManager.updatePreview(
-                    PreviewState(
-                        cameraLens = lens,
-                        flashMode = flashMode
-                    ), it
+                    PreviewState(cameraLens = lens, torchState = torchState),
+                    it
                 )
             }
         )

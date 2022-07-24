@@ -2,9 +2,11 @@
 
 package com.sample.android.screens.recording
 
+import android.net.Uri
 import androidx.camera.core.CameraInfo
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
+import androidx.camera.core.TorchState
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
@@ -31,20 +33,27 @@ class RecordingViewModel constructor(private val fileManager: FileManager) : Vie
             Event.FlashTapped -> onFlashTapped()
             Event.CloseTapped -> onCloseTapped()
             Event.FlipTapped -> onFlipTapped()
-            Event.CaptureTapped -> onCaptureTapped()
+
+            Event.RecordTapped -> onCaptureTapped()
+            Event.PauseTapped -> onPauseTapped()
+            Event.ResumeTapped -> onResumeTapped()
+            Event.StopTapped -> onStopTapped()
 
             is Event.CameraInitialized -> onCameraInitialized(event.cameraLensInfo)
+            is Event.RecordingStarted -> onRecordingStarted()
+            is Event.OnProgress -> onProgress(event.progress)
+            is Event.RecordingPaused -> onPaused()
+            is Event.RecordingEnded -> onRecordingFinished()
             is Event.Error -> onError()
-            is Event.ImageCaptured -> onImageCaptured()
         }
     }
 
     private fun onFlashTapped() {
         _state.update {
-            when (_state.value.flashMode) {
-                ImageCapture.FLASH_MODE_OFF -> it.copy(flashMode = ImageCapture.FLASH_MODE_ON)
-                ImageCapture.FLASH_MODE_ON -> it.copy(flashMode = ImageCapture.FLASH_MODE_OFF)
-                else -> it.copy(flashMode = ImageCapture.FLASH_MODE_OFF)
+            when (_state.value.torchState) {
+                TorchState.OFF -> it.copy(torchState = TorchState.ON)
+                TorchState.ON -> it.copy(torchState = TorchState.OFF)
+                else -> it.copy(torchState = TorchState.OFF)
             }
         }
     }
@@ -72,11 +81,29 @@ class RecordingViewModel constructor(private val fileManager: FileManager) : Vie
         }
     }
 
+    private fun onPauseTapped() {
+        viewModelScope.launch {
+            _effect.emit(Effect.PauseRecording)
+        }
+    }
+
+    private fun onResumeTapped() {
+        viewModelScope.launch {
+            _effect.emit(Effect.ResumeRecording)
+        }
+    }
+
+    private fun onStopTapped() {
+        viewModelScope.launch {
+            _effect.emit(Effect.StopRecording)
+        }
+    }
+
     private fun onCaptureTapped() {
         viewModelScope.launch {
             try {
                 val filePath = fileManager.createFile("photos", ".jpeg")
-                _effect.emit(Effect.CaptureImage(filePath))
+                _effect.emit(Effect.RecordVideo(filePath))
             } catch (exception: IllegalArgumentException) {
                 Timber.e(exception)
                 _effect.emit(Effect.ShowMessage())
@@ -84,15 +111,34 @@ class RecordingViewModel constructor(private val fileManager: FileManager) : Vie
         }
     }
 
-    private fun onImageCaptured() {
+    private fun onRecordingFinished() {
         viewModelScope.launch {
-            _effect.emit(Effect.ShowMessage(R.string.image_captured))
+            _effect.emit(Effect.ShowMessage(R.string.captured))
         }
+        _state.update { it.copy(recordingStatus = RecordingStatus.Idle, recordedLength = 0) }
     }
 
     private fun onError() {
+        _state.update { it.copy(recordedLength = 0, recordingStatus = RecordingStatus.Idle) }
         viewModelScope.launch {
             _effect.emit(Effect.ShowMessage())
+        }
+    }
+
+    private fun onRecordingStarted() {
+
+    }
+
+    private fun onPaused() {
+        _state.update { it.copy(recordingStatus = RecordingStatus.Paused) }
+    }
+
+    private fun onProgress(progress: Int) {
+        _state.update {
+            it.copy(
+                recordedLength = progress,
+                recordingStatus = RecordingStatus.InProgress
+            )
         }
     }
 
@@ -116,8 +162,11 @@ class RecordingViewModel constructor(private val fileManager: FileManager) : Vie
 
     data class State(
         val lens: Int? = null,
+        @TorchState.State val torchState: Int = TorchState.OFF,
         @ImageCapture.FlashMode val flashMode: Int = ImageCapture.FLASH_MODE_OFF,
         val lensInfo: MutableMap<Int, CameraInfo> = mutableMapOf(),
+        val recordedLength: Int = 0,
+        val recordingStatus: RecordingStatus = RecordingStatus.Idle,
         val permissionRequestInFlight: Boolean = false,
         val hasCameraPermission: Boolean = false,
         val permissionState: PermissionState? = null,
@@ -128,19 +177,37 @@ class RecordingViewModel constructor(private val fileManager: FileManager) : Vie
         data class CameraInitialized(val cameraLensInfo: HashMap<Int, CameraInfo>) :
             RecordingViewModel.Event()
 
-        data class ImageCaptured(val imageResult: ImageCapture.OutputFileResults) : Event()
-        data class Error(val exception: Exception) : Event()
+        object RecordingStarted : RecordingViewModel.Event()
+        data class OnProgress(val progress: Int) : RecordingViewModel.Event()
+        object RecordingPaused : RecordingViewModel.Event()
+        data class RecordingEnded(val outputUri: Uri) : Event()
+        data class Error(val throwable: Throwable?) : Event()
 
         object FlashTapped : Event()
         object CloseTapped : Event()
         object FlipTapped : Event()
-        object CaptureTapped : Event()
+
+        object RecordTapped : Event()
+        object PauseTapped : Event()
+        object ResumeTapped : Event()
+        object StopTapped : Event()
+
     }
 
     sealed class Effect {
 
         data class ShowMessage(val message: Int = R.string.something_went_wrong) : Effect()
-        data class CaptureImage(val filePath: String) : Effect()
+        data class RecordVideo(val filePath: String) : Effect()
         data class NavigateTo(val destination: ScreenDestinations) : Effect()
+
+        object PauseRecording : Effect()
+        object ResumeRecording : Effect()
+        object StopRecording : Effect()
+    }
+
+    sealed class RecordingStatus {
+        object Idle : RecordingStatus()
+        object InProgress : RecordingStatus()
+        object Paused : RecordingStatus()
     }
 }

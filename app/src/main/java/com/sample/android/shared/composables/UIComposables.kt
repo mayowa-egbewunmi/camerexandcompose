@@ -1,9 +1,11 @@
 package com.sample.android.shared.composables
 
+import android.text.format.DateUtils
 import androidx.camera.core.CameraInfo
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.Button
 import androidx.compose.material.IconButton
@@ -11,10 +13,12 @@ import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.sample.android.R
+import com.sample.android.screens.recording.RecordingViewModel
 
 @Composable
 fun CameraCaptureIcon(modifier: Modifier, onTapped: () -> Unit) {
@@ -188,6 +192,7 @@ internal fun CaptureFooter(
             .then(modifier)
     ) {
         CameraCaptureIcon(modifier = Modifier.align(Alignment.Center), onTapped = onCaptureTapped)
+
         if (showFlipIcon) {
             CameraFlipIcon(modifier = Modifier.align(Alignment.CenterEnd), onTapped = onFlipTapped)
         }
@@ -195,12 +200,31 @@ internal fun CaptureFooter(
 }
 
 @Composable
+fun Timer(modifier: Modifier = Modifier, seconds: Int) {
+    if (seconds > 0) {
+        Box(modifier = Modifier.padding(vertical = 24.dp).then(modifier)) {
+            Text(
+                text = DateUtils.formatElapsedTime(seconds.toLong()),
+                color = Color.White,
+                modifier = Modifier
+                    .background(color = Color.Red)
+                    .padding(horizontal = 10.dp)
+                    .then(modifier)
+            )
+        }
+
+    }
+}
+
+@Composable
 internal fun RecordFooter(
     modifier: Modifier = Modifier,
-    recording: Boolean,
+    recordingStatus: RecordingViewModel.RecordingStatus,
     showFlipIcon: Boolean,
     onRecordTapped: () -> Unit,
     onStopTapped: () -> Unit,
+    onPauseTapped: () -> Unit,
+    onResumeTapped: () -> Unit,
     onFlipTapped: () -> Unit
 ) {
     Box(
@@ -209,12 +233,25 @@ internal fun RecordFooter(
             .padding(horizontal = 8.dp, vertical = 24.dp)
             .then(modifier)
     ) {
-        if (recording) {
-            CameraStopIcon(modifier = Modifier.align(Alignment.Center), onTapped = onStopTapped)
-        } else {
-            CameraRecordIcon(modifier = Modifier.align(Alignment.Center), onTapped = onRecordTapped)
+        when(recordingStatus) {
+            RecordingViewModel.RecordingStatus.Idle -> {
+                CameraRecordIcon(modifier = Modifier.align(Alignment.Center), onTapped = onRecordTapped)
+            }
+            RecordingViewModel.RecordingStatus.Paused -> {
+                CameraStopIcon(modifier = Modifier.align(Alignment.Center), onTapped = onStopTapped)
+                CameraPlayIcon(modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(end = 150.dp), onTapped = onResumeTapped)
+            }
+            RecordingViewModel.RecordingStatus.InProgress -> {
+                CameraStopIcon(modifier = Modifier.align(Alignment.Center), onTapped = onStopTapped)
+                CameraPauseIcon(modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(end = 140.dp), onTapped = onPauseTapped)
+            }
         }
-        if (showFlipIcon) {
+
+        if (showFlipIcon && recordingStatus == RecordingViewModel.RecordingStatus.Idle) {
             CameraFlipIcon(modifier = Modifier.align(Alignment.CenterEnd), onTapped = onFlipTapped)
         }
     }

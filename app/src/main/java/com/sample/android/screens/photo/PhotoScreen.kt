@@ -99,7 +99,6 @@ private fun PhotoScreenContent(
         Box(modifier = Modifier.fillMaxSize()) {
             cameraLens?.let {
                 CameraPreview(
-
                     lens = it,
                     flashMode = flashMode
                 )

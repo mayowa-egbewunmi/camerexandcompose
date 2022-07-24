@@ -1,16 +1,18 @@
 package com.sample.android.shared.utils
 
 import android.content.Context
+import android.net.Uri
 import android.view.View
 import android.view.ViewGroup
 import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
-import androidx.camera.video.Recorder
+import androidx.camera.video.*
 import androidx.camera.video.VideoCapture
 import androidx.camera.view.PreviewView
 import androidx.compose.runtime.compositionLocalOf
 import androidx.concurrent.futures.await
 import androidx.core.content.ContextCompat
+import androidx.core.util.Consumer
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
@@ -25,11 +27,9 @@ class VideoCaptureManager private constructor(private val builder: Builder) :
     private lateinit var cameraProviderFuture: ListenableFuture<ProcessCameraProvider>
     private lateinit var videoCapture: VideoCapture<Recorder>
 
-    var recordingListener: RecordingListener = object : RecordingListener {
-        override fun onInitialised(cameraLensInfo: HashMap<Int, CameraInfo>) {}
-        override fun onSuccess(imageResult: ImageCapture.OutputFileResults) {}
-        override fun onError(exception: Exception) {}
-    }
+    private lateinit var activeRecording: Recording
+
+    lateinit var recordingListener: RecordingListener
 
     init {
         getLifecycle().addObserver(this)
@@ -120,7 +120,9 @@ class VideoCaptureManager private constructor(private val builder: Builder) :
                 cameraSelector,
                 preview,
                 videoCapture
-            )
+            ).apply {
+                cameraControl.enableTorch(previewState.torchState == TorchState.ON)
+            }
         }
         return cameraPreview
     }
@@ -134,20 +136,38 @@ class VideoCaptureManager private constructor(private val builder: Builder) :
     }
 
     fun startRecording(filePath: String) {
-        val file = File(filePath)
-        val outputFileOptions = ImageCapture.OutputFileOptions.Builder(file).build()
-//
-//        videoCapture.re(outputFileOptions, ContextCompat.getMainExecutor(getContext()),
-//            object : ImageCapture.OnImageSavedCallback {
-//                override fun onError(error: ImageCaptureException) {
-//                    Timber.e(error)
-//                    recordingListener.onError(error)
-//                }
-//
-//                override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
-//                    recordingListener.onSuccess(outputFileResults)
-//                }
-//            })
+        val outputOptions = FileOutputOptions.Builder(File(filePath)).build()
+        activeRecording = videoCapture.output
+            .prepareRecording(getContext(), outputOptions)
+//                .apply { if (state.audioEnabled) withAudioEnabled() }
+            .start(ContextCompat.getMainExecutor(getContext()), videoRecordingListener)
+    }
+
+    fun pauseRecording() {
+        activeRecording.pause()
+    }
+
+    fun resumeRecording() {
+        activeRecording.resume()
+    }
+
+    fun stopRecording() {
+        activeRecording.stop()
+    }
+
+    private val videoRecordingListener = Consumer<VideoRecordEvent> { event ->
+        when (event) {
+            is VideoRecordEvent.Start -> recordingListener.recordingStarted()
+            is VideoRecordEvent.Finalize -> if (event.hasError()) {
+                recordingListener.onError(event.cause)
+            } else {
+                recordingListener.recordingCompleted(event.outputResults.outputUri)
+            }
+            is VideoRecordEvent.Pause -> recordingListener.recordingPaused()
+            is VideoRecordEvent.Status -> {
+                recordingListener.onProgress(event.recordingStats.recordedDurationNanos.fromNanoToSeconds())
+            }
+        }
     }
 
     class Builder(val context: Context) {
@@ -168,9 +188,15 @@ class VideoCaptureManager private constructor(private val builder: Builder) :
 
     interface RecordingListener {
         fun onInitialised(cameraLensInfo: HashMap<Int, CameraInfo>)
-        fun onSuccess(imageResult: ImageCapture.OutputFileResults)
-        fun onError(exception: Exception)
+        fun onProgress(progress: Int)
+        fun recordingStarted()
+        fun recordingPaused()
+        fun recordingCompleted(outputUri: Uri)
+        fun onError(throwable: Throwable?)
     }
+
+    private fun Long.fromNanoToSeconds() = (this / (1000 * 1000 * 1000)).toInt()
 }
 
-val LocalVideoCaptureManager = compositionLocalOf<VideoCaptureManager> { error("No capture manager found!") }
+val LocalVideoCaptureManager =
+    compositionLocalOf<VideoCaptureManager> { error("No capture manager found!") }

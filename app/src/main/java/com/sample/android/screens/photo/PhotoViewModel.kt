@@ -87,7 +87,7 @@ class PhotoViewModel constructor(private val fileManager: FileManager) : ViewMod
 
     private fun onImageCaptured() {
         viewModelScope.launch {
-            _effect.emit(Effect.ShowMessage(R.string.image_captured))
+            _effect.emit(Effect.ShowMessage(R.string.captured))
         }
     }
 
