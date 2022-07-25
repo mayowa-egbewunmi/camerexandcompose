@@ -1,7 +1,6 @@
 package com.sample.android.shared.utils
 
 import android.content.Context
-import android.media.MediaPlayer
 import android.net.Uri
 import android.view.ViewGroup
 import android.widget.FrameLayout
@@ -13,7 +12,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-class VideoPlaybackManager private constructor(private val builder: Builder) {
+class PlaybackManager private constructor(private val builder: Builder) {
 
     private val context = builder.context
 
@@ -29,8 +28,13 @@ class VideoPlaybackManager private constructor(private val builder: Builder) {
             )
             layoutParams = params
             setVideoURI(builder.uri)
-            setOnPreparedListener(builder.preparedListener)
-            setOnCompletionListener(builder.completionListener)
+            setOnPreparedListener {
+                builder.listener?.onPrepared()
+                this.seekTo(1)
+            }
+            setOnCompletionListener {
+                builder.listener?.onCompleted()
+            }
             requestFocus()
         }
     }
@@ -40,7 +44,7 @@ class VideoPlaybackManager private constructor(private val builder: Builder) {
         videoView.start()
         coroutineJob = lifecycleOwner!!.lifecycleScope.launch {
             while (videoView.isPlaying) {
-                builder.progressListener(videoView.currentPosition)
+                builder.listener?.onProgress(videoView.currentPosition)
                 delay(1000)
             }
         }
@@ -53,23 +57,30 @@ class VideoPlaybackManager private constructor(private val builder: Builder) {
 
     class Builder(val context: Context) {
 
-        var preparedListener: MediaPlayer.OnPreparedListener = MediaPlayer.OnPreparedListener {}
-
-        var completionListener: MediaPlayer.OnCompletionListener =
-            MediaPlayer.OnCompletionListener {}
-
-        var progressListener: (Int) -> Unit = {}
+        var listener: PlaybackListener? = null
 
         var lifecycleOwner: LifecycleOwner? = null
 
         var uri: Uri? = null
 
-        fun build(): VideoPlaybackManager {
+        fun build(): PlaybackManager {
             requireNotNull(uri)
             requireNotNull(lifecycleOwner)
-            return VideoPlaybackManager(this)
+            requireNotNull(listener)
+            return PlaybackManager(this)
         }
+    }
+
+    interface PlaybackListener {
+
+        fun onPrepared()
+
+        fun onProgress(progress: Int)
+
+        fun onCompleted()
+
     }
 }
 
-val LocalPlaybackManager = compositionLocalOf<VideoPlaybackManager> { error("No playback manager found!") }
+val LocalPlaybackManager =
+    compositionLocalOf<PlaybackManager> { error("No playback manager found!") }

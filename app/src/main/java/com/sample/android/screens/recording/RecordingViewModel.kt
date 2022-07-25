@@ -34,7 +34,7 @@ class RecordingViewModel constructor(private val fileManager: FileManager) : Vie
             Event.CloseTapped -> onCloseTapped()
             Event.FlipTapped -> onFlipTapped()
 
-            Event.RecordTapped -> onCaptureTapped()
+            Event.RecordTapped -> onRecordTapped()
             Event.PauseTapped -> onPauseTapped()
             Event.ResumeTapped -> onResumeTapped()
             Event.StopTapped -> onStopTapped()
@@ -43,7 +43,7 @@ class RecordingViewModel constructor(private val fileManager: FileManager) : Vie
             is Event.RecordingStarted -> onRecordingStarted()
             is Event.OnProgress -> onProgress(event.progress)
             is Event.RecordingPaused -> onPaused()
-            is Event.RecordingEnded -> onRecordingFinished()
+            is Event.RecordingEnded -> onRecordingFinished(event.outputUri)
             is Event.Error -> onError()
         }
     }
@@ -60,7 +60,7 @@ class RecordingViewModel constructor(private val fileManager: FileManager) : Vie
 
     private fun onCloseTapped() {
         viewModelScope.launch {
-            _effect.emit(Effect.NavigateTo(ScreenDestinations.Landing))
+            _effect.emit(Effect.NavigateTo(ScreenDestinations.Landing.route))
         }
     }
 
@@ -99,10 +99,10 @@ class RecordingViewModel constructor(private val fileManager: FileManager) : Vie
         }
     }
 
-    private fun onCaptureTapped() {
+    private fun onRecordTapped() {
         viewModelScope.launch {
             try {
-                val filePath = fileManager.createFile("photos", ".jpeg")
+                val filePath = fileManager.createFile("videos", "mp4")
                 _effect.emit(Effect.RecordVideo(filePath))
             } catch (exception: IllegalArgumentException) {
                 Timber.e(exception)
@@ -111,9 +111,9 @@ class RecordingViewModel constructor(private val fileManager: FileManager) : Vie
         }
     }
 
-    private fun onRecordingFinished() {
+    private fun onRecordingFinished(uri: Uri) {
         viewModelScope.launch {
-            _effect.emit(Effect.ShowMessage(R.string.captured))
+            _effect.emit(Effect.NavigateTo(ScreenDestinations.Playback.createRoute(uri.encodedPath!!)))
         }
         _state.update { it.copy(recordingStatus = RecordingStatus.Idle, recordedLength = 0) }
     }
@@ -198,7 +198,7 @@ class RecordingViewModel constructor(private val fileManager: FileManager) : Vie
 
         data class ShowMessage(val message: Int = R.string.something_went_wrong) : Effect()
         data class RecordVideo(val filePath: String) : Effect()
-        data class NavigateTo(val destination: ScreenDestinations) : Effect()
+        data class NavigateTo(val route: String) : Effect()
 
         object PauseRecording : Effect()
         object ResumeRecording : Effect()

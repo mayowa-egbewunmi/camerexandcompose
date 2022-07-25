@@ -2,11 +2,12 @@ package com.sample.android.screens.recording
 
 import android.Manifest
 import android.net.Uri
+import android.util.Size
 import androidx.camera.core.CameraInfo
 import androidx.camera.core.TorchState
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -23,7 +24,7 @@ import com.sample.android.shared.composables.*
 import com.sample.android.shared.composables.CaptureHeader
 import com.sample.android.shared.composables.RequestPermission
 import com.sample.android.shared.utils.LocalVideoCaptureManager
-import com.sample.android.shared.utils.VideoCaptureManager
+import com.sample.android.shared.utils.RecordingManager
 import kotlinx.coroutines.flow.collect
 
 @OptIn(ExperimentalPermissionsApi::class)
@@ -43,7 +44,7 @@ internal fun RecordingScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
 
     val listener = remember {
-        object : VideoCaptureManager.RecordingListener {
+        object : RecordingManager.RecordingListener {
             override fun onInitialised(cameraLensInfo: HashMap<Int, CameraInfo>) {
                 recordingViewModel.onEvent(RecordingViewModel.Event.CameraInitialized(cameraLensInfo))
             }
@@ -71,7 +72,7 @@ internal fun RecordingScreen(
     }
 
     val captureManager = remember {
-        VideoCaptureManager.Builder(context)
+        RecordingManager.Builder(context)
             .registerLifecycleOwner(lifecycleOwner)
             .create()
             .apply { recordingListener = listener }
@@ -80,7 +81,7 @@ internal fun RecordingScreen(
     LaunchedEffect(recordingViewModel) {
         recordingViewModel.effect.collect {
             when (it) {
-                is RecordingViewModel.Effect.NavigateTo -> navController.navigateTo(it.destination.route)
+                is RecordingViewModel.Effect.NavigateTo -> navController.navigateTo(it.route)
                 is RecordingViewModel.Effect.RecordVideo -> captureManager.startRecording(it.filePath)
                 is RecordingViewModel.Effect.ShowMessage -> onShowMessage(it.message)
                 RecordingViewModel.Effect.PauseRecording -> captureManager.pauseRecording()
@@ -159,13 +160,14 @@ private fun VideoScreenContent(
 @Composable
 private fun CameraPreview(lens: Int, @TorchState.State torchState: Int) {
     val captureManager = LocalVideoCaptureManager.current
-    Box {
+    BoxWithConstraints {
         AndroidView(
             factory = {
                 captureManager.showPreview(
                     PreviewState(
                         cameraLens = lens,
-                        torchState = torchState
+                        torchState = torchState,
+                        size = Size(this.minWidth.value.toInt(), this.maxHeight.value.toInt())
                     )
                 )
             },

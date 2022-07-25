@@ -21,7 +21,7 @@ import com.google.common.util.concurrent.ListenableFuture
 import com.sample.android.shared.PreviewState
 import java.io.File
 
-class VideoCaptureManager private constructor(private val builder: Builder) :
+class RecordingManager private constructor(private val builder: Builder) :
     LifecycleEventObserver {
 
     private lateinit var cameraProviderFuture: ListenableFuture<ProcessCameraProvider>
@@ -108,6 +108,7 @@ class VideoCaptureManager private constructor(private val builder: Builder) :
 
             //Create Preview use case
             val preview: Preview = Preview.Builder()
+                .setTargetResolution(previewState.size)
                 .build()
                 .apply { setSurfaceProvider(cameraPreview.surfaceProvider) }
 
@@ -180,9 +181,9 @@ class VideoCaptureManager private constructor(private val builder: Builder) :
             return this
         }
 
-        fun create(): VideoCaptureManager {
+        fun create(): RecordingManager {
             requireNotNull(lifecycleOwner) { "Lifecycle owner is not set" }
-            return VideoCaptureManager(this)
+            return RecordingManager(this)
         }
     }
 
@@ -199,4 +200,4 @@ class VideoCaptureManager private constructor(private val builder: Builder) :
 }
 
 val LocalVideoCaptureManager =
-    compositionLocalOf<VideoCaptureManager> { error("No capture manager found!") }
+    compositionLocalOf<RecordingManager> { error("No capture manager found!") }

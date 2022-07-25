@@ -1,6 +1,7 @@
 package com.sample.android
 
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -17,10 +18,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.IntOffset
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import androidx.navigation.NamedNavArgument
-import androidx.navigation.NavBackStackEntry
-import androidx.navigation.NavGraphBuilder
-import androidx.navigation.NavHostController
+import androidx.navigation.*
 import com.google.accompanist.navigation.animation.AnimatedNavHost
 import com.google.accompanist.navigation.animation.composable
 import com.google.accompanist.navigation.animation.rememberAnimatedNavController
@@ -32,6 +30,7 @@ import com.sample.android.screens.playback.PlaybackScreen
 import com.sample.android.screens.recording.RecordingScreen
 import com.sample.android.screens.recording.RecordingViewModel
 import com.sample.android.shared.utils.FileManager
+import timber.log.Timber
 
 @OptIn(ExperimentalAnimationApi::class)
 class MainActivity : ComponentActivity() {
@@ -81,7 +80,19 @@ class MainActivity : ComponentActivity() {
                             showMessage(it)
                         }
                     }
-                    screen(ScreenDestinations.Preview.route) { PlaybackScreen(navController) }
+                    screen(
+                        ScreenDestinations.Playback.route, arguments = listOf(
+                            navArgument(ScreenDestinations.ARG_FILE_PATH) {
+                                nullable = false
+                                type = NavType.StringType
+                            })
+                    ) {
+                        val filePath = ScreenDestinations.Playback.getFilePath(it.arguments)
+                        PlaybackScreen(
+                            filePath = filePath,
+                            navHostController = navController
+                        )
+                    }
                 }
 
                 BackHandler {
@@ -140,5 +151,17 @@ sealed class ScreenDestinations(val route: String) {
     object Landing : ScreenDestinations("landing")
     object Photo : ScreenDestinations("photo")
     object Video : ScreenDestinations("video")
-    object Preview : ScreenDestinations("preview_screen")
+    object Playback : ScreenDestinations("playback?${ARG_FILE_PATH}={$ARG_FILE_PATH}") {
+        fun createRoute(filePath: String): String {
+            return "playback?${ARG_FILE_PATH}=${filePath}"
+        }
+
+        fun getFilePath(bundle: Bundle?): String {
+            return bundle?.getString(ARG_FILE_PATH)!!
+        }
+    }
+
+    companion object {
+        const val ARG_FILE_PATH: String = "arg_file_path"
+    }
 }

@@ -1,8 +1,6 @@
 package com.sample.android.shared.composables
 
 import android.text.format.DateUtils
-import androidx.camera.core.CameraInfo
-import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -39,11 +37,11 @@ fun CameraCaptureIcon(modifier: Modifier, onTapped: () -> Unit) {
 @Composable
 fun CameraPauseIcon(modifier: Modifier = Modifier, onTapped: () -> Unit) {
     IconButton(
-        modifier = Modifier
-            .then(modifier),
+        modifier = Modifier.then(modifier),
         onClick = { onTapped() },
         content = {
             Image(
+                modifier = Modifier.size(60.dp),
                 painter = painterResource(id = R.drawable.ic_pause),
                 contentDescription = null
             )
@@ -60,6 +58,38 @@ fun CameraPlayIcon(modifier: Modifier = Modifier, onTapped: () -> Unit) {
         onClick = { onTapped() },
         content = {
             Image(
+                modifier = Modifier.size(60.dp),
+                painter = painterResource(id = R.drawable.ic_play),
+                contentDescription = ""
+            )
+        }
+    )
+}
+
+@Composable
+fun CameraPauseIconSmall(modifier: Modifier = Modifier, onTapped: () -> Unit) {
+    IconButton(
+        modifier = Modifier.then(modifier),
+        onClick = { onTapped() },
+        content = {
+            Image(
+                painter = painterResource(id = R.drawable.ic_pause),
+                contentDescription = null
+            )
+        }
+    )
+}
+
+
+@Composable
+fun CameraPlayIconSmall(modifier: Modifier = Modifier, onTapped: () -> Unit) {
+    IconButton(
+        modifier = Modifier
+            .then(modifier),
+        onClick = { onTapped() },
+        content = {
+            Image(
+                modifier = Modifier.size(60.dp),
                 painter = painterResource(id = R.drawable.ic_play),
                 contentDescription = ""
             )
@@ -75,6 +105,7 @@ fun CameraRecordIcon(modifier: Modifier = Modifier, onTapped: () -> Unit) {
         onClick = { onTapped() },
         content = {
             Image(
+                modifier = Modifier.size(60.dp),
                 painter = painterResource(id = R.drawable.ic_record),
                 contentDescription = null,
             )
@@ -89,6 +120,7 @@ fun CameraStopIcon(modifier: Modifier = Modifier, onTapped: () -> Unit) {
         onClick = { onTapped() },
         content = {
             Image(
+                modifier = Modifier.size(60.dp),
                 painter = painterResource(id = R.drawable.ic_stop),
                 contentDescription = null,
             )
@@ -239,13 +271,13 @@ internal fun RecordFooter(
             }
             RecordingViewModel.RecordingStatus.Paused -> {
                 CameraStopIcon(modifier = Modifier.align(Alignment.Center), onTapped = onStopTapped)
-                CameraPlayIcon(modifier = Modifier
+                CameraPlayIconSmall(modifier = Modifier
                     .align(Alignment.Center)
                     .padding(end = 150.dp), onTapped = onResumeTapped)
             }
             RecordingViewModel.RecordingStatus.InProgress -> {
                 CameraStopIcon(modifier = Modifier.align(Alignment.Center), onTapped = onStopTapped)
-                CameraPauseIcon(modifier = Modifier
+                CameraPauseIconSmall(modifier = Modifier
                     .align(Alignment.Center)
                     .padding(end = 140.dp), onTapped = onPauseTapped)
             }

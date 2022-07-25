@@ -18,8 +18,8 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.sample.android.navigateTo
 import com.sample.android.shared.PreviewState
 import com.sample.android.shared.composables.*
-import com.sample.android.shared.utils.LocalPhotoCaptureManager
-import com.sample.android.shared.utils.PhotoCaptureManager
+import com.sample.android.shared.utils.LocalCaptureManager
+import com.sample.android.shared.utils.CaptureManager
 import kotlinx.coroutines.flow.collect
 
 @Composable
@@ -38,7 +38,7 @@ internal fun PhotoScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
 
     val listener = remember {
-        object : PhotoCaptureManager.PhotoListener {
+        object : CaptureManager.PhotoListener {
             override fun onInitialised(cameraLensInfo: HashMap<Int, CameraInfo>) {
                 photoViewModel.onEvent(PhotoViewModel.Event.CameraInitialized(cameraLensInfo))
             }
@@ -54,7 +54,7 @@ internal fun PhotoScreen(
     }
 
     val captureManager = remember {
-        PhotoCaptureManager.Builder(context)
+        CaptureManager.Builder(context)
             .registerLifecycleOwner(lifecycleOwner)
             .create()
             .apply { photoListener = listener }
@@ -70,7 +70,7 @@ internal fun PhotoScreen(
         }
     }
 
-    CompositionLocalProvider(LocalPhotoCaptureManager provides captureManager) {
+    CompositionLocalProvider(LocalCaptureManager provides captureManager) {
         PhotoScreenContent(
             hasPermission = permissionHandlerState.permissionState?.hasPermission ?: false,
             cameraLens = state.lens,
@@ -126,7 +126,7 @@ private fun CameraPreview(
     lens: Int,
     @ImageCapture.FlashMode flashMode: Int
 ) {
-    val captureManager = LocalPhotoCaptureManager.current
+    val captureManager = LocalCaptureManager.current
 
     Box {
         AndroidView(

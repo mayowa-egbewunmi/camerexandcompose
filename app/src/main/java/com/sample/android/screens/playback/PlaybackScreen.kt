@@ -1,11 +1,15 @@
 package com.sample.android.screens.playback
 
 import android.net.Uri
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.CircularProgressIndicator
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -14,22 +18,40 @@ import com.sample.android.ScreenDestinations
 import com.sample.android.navigateTo
 import com.sample.android.shared.composables.*
 import com.sample.android.shared.utils.LocalPlaybackManager
-import com.sample.android.shared.utils.VideoPlaybackManager
+import com.sample.android.shared.utils.PlaybackManager
 import kotlinx.coroutines.flow.collect
 
 @Composable
-internal fun PlaybackScreen(navHostController: NavHostController, playbackViewModel: PlaybackViewModel = viewModel()) {
+internal fun PlaybackScreen(
+    filePath: String,
+    navHostController: NavHostController,
+    playbackViewModel: PlaybackViewModel = viewModel()
+) {
     val state by playbackViewModel.state.collectAsState()
-    if (state.filePath == null) return
-
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
 
-    //TODO: Create a prepared listener that determines if the icons should be displayed
-    //TODO: A completed listener to reset the playback position and update playback status
-    //TODO: A playback in progress listener to check playback position
+    val listener = object : PlaybackManager.PlaybackListener {
+        override fun onPrepared() {
+            playbackViewModel.onEvent(PlaybackViewModel.Event.Prepared)
+        }
+
+        override fun onProgress(progress: Int) {
+            playbackViewModel.onEvent(PlaybackViewModel.Event.OnProgress(progress))
+        }
+
+        override fun onCompleted() {
+            playbackViewModel.onEvent(PlaybackViewModel.Event.Completed)
+        }
+    }
+
     val playbackManager = remember {
-        VideoPlaybackManager.Builder(context)
-            .apply { uri = Uri.parse(state.filePath) }
+        PlaybackManager.Builder(context)
+            .apply {
+                this.uri = Uri.parse(filePath)
+                this.listener = listener
+                this.lifecycleOwner = lifecycleOwner
+            }
             .build()
     }
 
@@ -40,7 +62,9 @@ internal fun PlaybackScreen(navHostController: NavHostController, playbackViewMo
     LaunchedEffect(playbackViewModel) {
         playbackViewModel.effect.collect {
             when (it) {
-                PlaybackViewModel.Effect.NavigateUp -> navHostController.navigateTo(ScreenDestinations.Landing.route)
+                PlaybackViewModel.Effect.NavigateUp -> navHostController.navigateTo(
+                    ScreenDestinations.Landing.route
+                )
                 PlaybackViewModel.Effect.Pause -> playbackManager.pausePlayback()
                 PlaybackViewModel.Effect.Play -> playbackManager.start(state.playbackPosition)
             }
@@ -49,31 +73,30 @@ internal fun PlaybackScreen(navHostController: NavHostController, playbackViewMo
 }
 
 @Composable
-private fun PlaybackScreenContent(state: PlaybackViewModel.State, onEvent: (PlaybackViewModel.Event) -> Unit) {
+private fun PlaybackScreenContent(
+    state: PlaybackViewModel.State,
+    onEvent: (PlaybackViewModel.Event) -> Unit
+) {
     val playbackManager = LocalPlaybackManager.current
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        CameraCloseIcon(modifier = Modifier.align(Alignment.TopEnd).padding(24.dp)) {
-            onEvent(PlaybackViewModel.Event.CloseTapped)
-        }
+    Box(modifier = Modifier
+        .fillMaxSize()
+        .background(color = Color.Black)) {
         AndroidView(modifier = Modifier.fillMaxSize(), factory = { playbackManager.videoView })
-        if (state.playbackStatus == PlaybackViewModel.PlaybackStatus.InProgress) {
-            CameraPauseIcon(
-                Modifier
-                    .size(60.dp)
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 30.dp)) {
-                onEvent(PlaybackViewModel.Event.PauseTapped)
+        when (state.playbackStatus) {
+            PlaybackViewModel.PlaybackStatus.Idle -> {
+                CameraPlayIcon(Modifier.align(Alignment.Center)) {
+                    onEvent(PlaybackViewModel.Event.PlayTapped)
+                }
             }
-        } else {
-            CameraPlayIcon(
-                Modifier
-                    .size(60.dp)
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 30.dp)) {
-                onEvent(PlaybackViewModel.Event.PlayTapped)
+            PlaybackViewModel.PlaybackStatus.InProgress -> {
+                CameraPauseIcon(Modifier.align(Alignment.Center)) {
+                    onEvent(PlaybackViewModel.Event.PauseTapped)
+                }
+            }
+            else -> {
+                CircularProgressIndicator()
             }
         }
-
     }
 }

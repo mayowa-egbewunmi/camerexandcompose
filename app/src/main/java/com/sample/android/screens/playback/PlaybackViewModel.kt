@@ -2,10 +2,7 @@ package com.sample.android.screens.playback
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 class PlaybackViewModel : ViewModel() {
@@ -18,15 +15,12 @@ class PlaybackViewModel : ViewModel() {
 
     fun onEvent(event: Event) {
         when (event) {
-            Event.CloseTapped -> onCloseTapped()
             Event.PauseTapped -> onPauseTapped()
             Event.PlayTapped -> onPlayTapped()
-        }
-    }
 
-    private fun onCloseTapped() {
-        viewModelScope.launch {
-            _effect.emit(Effect.NavigateUp)
+            is Event.OnProgress -> onProgress(event.progress)
+            Event.Prepared -> onPrepared()
+            Event.Completed -> onCompleted()
         }
     }
 
@@ -34,6 +28,7 @@ class PlaybackViewModel : ViewModel() {
         viewModelScope.launch {
             _effect.emit(Effect.Pause)
         }
+        _state.update { it.copy(playbackStatus = PlaybackStatus.Idle) }
     }
 
     private fun onPlayTapped() {
@@ -42,9 +37,21 @@ class PlaybackViewModel : ViewModel() {
         }
     }
 
+    private fun onProgress(progress: Int) {
+        _state.update { it.copy(playbackPosition = progress, playbackStatus = PlaybackStatus.InProgress) }
+    }
+
+    private fun onPrepared() {
+        _state.update { it.copy(playbackStatus = PlaybackStatus.Idle) }
+    }
+
+    private fun onCompleted() {
+        _state.update { it.copy(playbackStatus = PlaybackStatus.Idle, playbackPosition = 0) }
+    }
+
     data class State(
         val filePath: String? = null,
-        val playbackStatus: PlaybackStatus = PlaybackStatus.Idle,
+        val playbackStatus: PlaybackStatus? = PlaybackStatus.Idle,
         val playbackPosition: Int = 0
     )
 
@@ -58,12 +65,13 @@ class PlaybackViewModel : ViewModel() {
         object PlayTapped : Event()
         object PauseTapped : Event()
 
-        object CloseTapped : Event()
+        object Prepared : Event()
+        object Completed : Event()
+        data class OnProgress(val progress: Int) : Event()
     }
 
     sealed class PlaybackStatus {
         object Idle : PlaybackStatus()
         object InProgress : PlaybackStatus()
-        object Paused : PlaybackStatus()
     }
 }
