@@ -20,4 +20,5 @@ object Dep {
     val composeActivity by lazy { "androidx.activity:activity-compose:${Versions.composeActivity}" }
     val composeNavigation by lazy { "androidx.navigation:navigation-compose:${Versions.composeNavigation}" }
     val composeNavigationAnimation by lazy { "com.google.accompanist:accompanist-navigation-animation:${Versions.accompanist}" }
+    val coil by lazy { "io.coil-kt:coil-compose:${Versions.coil}" }
 }

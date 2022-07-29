@@ -2,6 +2,7 @@ package com.sample.android.shared.composables
 
 import android.text.format.DateUtils
 import androidx.camera.core.ImageCapture
+import androidx.camera.core.TorchState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -89,7 +90,6 @@ fun CameraPlayIconSmall(modifier: Modifier = Modifier, onTapped: () -> Unit) {
         onClick = { onTapped() },
         content = {
             Image(
-                modifier = Modifier.size(60.dp),
                 painter = painterResource(id = R.drawable.ic_play),
                 contentDescription = ""
             )
@@ -159,6 +159,26 @@ fun CameraCloseIcon(modifier: Modifier = Modifier, onTapped: () -> Unit) {
 }
 
 @Composable
+fun CameraTorchIcon(modifier: Modifier = Modifier, @TorchState.State torchState: Int, onTapped: () -> Unit) {
+    IconButton(
+        modifier = Modifier
+            .then(modifier),
+        onClick = { onTapped() },
+        content = {
+            val drawable = if (torchState == TorchState.ON) {
+                R.drawable.ic_flash_off
+            } else {
+                R.drawable.ic_flash_on
+            }
+            Image(
+                painter = painterResource(id = drawable),
+                contentDescription = ""
+            )
+        }
+    )
+}
+
+@Composable
 fun CameraFlashIcon(modifier: Modifier = Modifier, @ImageCapture.FlashMode flashMode: Int, onTapped: () -> Unit) {
     IconButton(
         modifier = Modifier
@@ -180,53 +200,10 @@ fun CameraFlashIcon(modifier: Modifier = Modifier, @ImageCapture.FlashMode flash
 }
 
 @Composable
-internal fun RequestPermission(onClick: () -> Unit) {
+internal fun RequestPermission(message: Int, onClick: () -> Unit) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Button(onClick = onClick) {
-            Text(text = stringResource(id = R.string.request_permission))
-        }
-    }
-}
-
-@Composable
-internal fun CaptureHeader(
-    modifier: Modifier = Modifier,
-    showFlashIcon: Boolean,
-    flashMode: Int,
-    onFlashTapped: () -> Unit,
-    onCloseTapped: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .wrapContentHeight()
-            .padding(8.dp)
-            .then(modifier)
-    ) {
-        if (showFlashIcon) {
-            CameraFlashIcon(flashMode = flashMode, onTapped = onFlashTapped)
-        }
-        CameraCloseIcon(onTapped = onCloseTapped, modifier = Modifier.align(Alignment.TopEnd))
-    }
-}
-
-@Composable
-internal fun CaptureFooter(
-    modifier: Modifier = Modifier,
-    showFlipIcon: Boolean,
-    onCaptureTapped: () -> Unit,
-    onFlipTapped: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 24.dp)
-            .then(modifier)
-    ) {
-        CameraCaptureIcon(modifier = Modifier.align(Alignment.Center), onTapped = onCaptureTapped)
-
-        if (showFlipIcon) {
-            CameraFlipIcon(modifier = Modifier.align(Alignment.CenterEnd), onTapped = onFlipTapped)
+            Text(text = stringResource(id = message))
         }
     }
 }
@@ -245,46 +222,5 @@ fun Timer(modifier: Modifier = Modifier, seconds: Int) {
             )
         }
 
-    }
-}
-
-@Composable
-internal fun RecordFooter(
-    modifier: Modifier = Modifier,
-    recordingStatus: RecordingViewModel.RecordingStatus,
-    showFlipIcon: Boolean,
-    onRecordTapped: () -> Unit,
-    onStopTapped: () -> Unit,
-    onPauseTapped: () -> Unit,
-    onResumeTapped: () -> Unit,
-    onFlipTapped: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 24.dp)
-            .then(modifier)
-    ) {
-        when(recordingStatus) {
-            RecordingViewModel.RecordingStatus.Idle -> {
-                CameraRecordIcon(modifier = Modifier.align(Alignment.Center), onTapped = onRecordTapped)
-            }
-            RecordingViewModel.RecordingStatus.Paused -> {
-                CameraStopIcon(modifier = Modifier.align(Alignment.Center), onTapped = onStopTapped)
-                CameraPlayIconSmall(modifier = Modifier
-                    .align(Alignment.Center)
-                    .padding(end = 150.dp), onTapped = onResumeTapped)
-            }
-            RecordingViewModel.RecordingStatus.InProgress -> {
-                CameraStopIcon(modifier = Modifier.align(Alignment.Center), onTapped = onStopTapped)
-                CameraPauseIconSmall(modifier = Modifier
-                    .align(Alignment.Center)
-                    .padding(end = 140.dp), onTapped = onPauseTapped)
-            }
-        }
-
-        if (showFlipIcon && recordingStatus == RecordingViewModel.RecordingStatus.Idle) {
-            CameraFlipIcon(modifier = Modifier.align(Alignment.CenterEnd), onTapped = onFlipTapped)
-        }
     }
 }

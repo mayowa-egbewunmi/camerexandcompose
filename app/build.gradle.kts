@@ -58,6 +58,7 @@ dependencies {
     implementation(Dep.composeActivity)
     implementation(Dep.composeNavigation)
     implementation(Dep.composeNavigationAnimation)
+    implementation(Dep.coil)
 
     testImplementation(Dep.junit)
     androidTestImplementation(Dep.androidJUnit)

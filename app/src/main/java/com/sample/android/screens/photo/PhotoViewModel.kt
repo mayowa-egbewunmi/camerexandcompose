@@ -2,29 +2,44 @@
 
 package com.sample.android.screens.photo
 
+import android.net.Uri
 import androidx.camera.core.CameraInfo
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.MultiplePermissionsState
 import com.google.accompanist.permissions.PermissionState
 import com.sample.android.R
 import com.sample.android.ScreenDestinations
-import com.sample.android.shared.PermissionAction
+import com.sample.android.shared.composables.PermissionHandler
 import com.sample.android.shared.utils.FileManager
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.lang.IllegalArgumentException
 
-class PhotoViewModel constructor(private val fileManager: FileManager) : ViewModel() {
+class PhotoViewModel constructor(
+    private val fileManager: FileManager,
+    val permissionHandler: PermissionHandler
+) : ViewModel() {
 
     private val _state = MutableStateFlow(State())
     val state: StateFlow<State> = _state
 
     private val _effect = MutableSharedFlow<Effect>()
     val effect: SharedFlow<Effect> = _effect
+
+    init {
+        permissionHandler
+            .state
+            .onEach { handlerState ->
+                _state.update { it.copy(multiplePermissionsState = handlerState.multiplePermissionsState) }
+            }
+            .catch { Timber.e(it) }
+            .launchIn(viewModelScope)
+    }
 
     fun onEvent(event: Event) {
         when (event) {
@@ -35,7 +50,9 @@ class PhotoViewModel constructor(private val fileManager: FileManager) : ViewMod
 
             is Event.CameraInitialized -> onCameraInitialized(event.cameraLensInfo)
             is Event.Error -> onError()
-            is Event.ImageCaptured -> onImageCaptured()
+            is Event.ImageCaptured -> onImageCaptured(event.imageResult.savedUri)
+
+            Event.PermissionRequired -> onPermissionRequired()
         }
     }
 
@@ -52,7 +69,7 @@ class PhotoViewModel constructor(private val fileManager: FileManager) : ViewMod
 
     private fun onCloseTapped() {
         viewModelScope.launch {
-            _effect.emit(Effect.NavigateTo(ScreenDestinations.Landing))
+            _effect.emit(Effect.NavigateTo(ScreenDestinations.Landing.route))
         }
     }
 
@@ -73,10 +90,14 @@ class PhotoViewModel constructor(private val fileManager: FileManager) : ViewMod
         }
     }
 
+    private fun onPermissionRequired() {
+        permissionHandler.onEvent(PermissionHandler.Event.PermissionRequired)
+    }
+
     private fun onCaptureTapped() {
         viewModelScope.launch {
             try {
-                val filePath = fileManager.createFile("photos", ".jpeg")
+                val filePath = fileManager.createFile("photos", "jpeg")
                 _effect.emit(Effect.CaptureImage(filePath))
             } catch (exception: IllegalArgumentException) {
                 Timber.e(exception)
@@ -85,9 +106,15 @@ class PhotoViewModel constructor(private val fileManager: FileManager) : ViewMod
         }
     }
 
-    private fun onImageCaptured() {
-        viewModelScope.launch {
-            _effect.emit(Effect.ShowMessage(R.string.captured))
+    private fun onImageCaptured(uri: Uri?) {
+        if (uri != null && uri.path != null) {
+            viewModelScope.launch {
+                _effect.emit(Effect.NavigateTo(ScreenDestinations.Preview.createRoute(uri.encodedPath!!)))
+            }
+        } else {
+            viewModelScope.launch {
+                _effect.emit(Effect.ShowMessage(R.string.path_is_null))
+            }
         }
     }
 
@@ -108,7 +135,7 @@ class PhotoViewModel constructor(private val fileManager: FileManager) : ViewMod
             }
             _state.update {
                 it.copy(
-                    lens = defaultLens,
+                    lens = it.lens ?: defaultLens,
                     lensInfo = cameraLensInfo
                 )
             }
@@ -121,8 +148,8 @@ class PhotoViewModel constructor(private val fileManager: FileManager) : ViewMod
         val lensInfo: MutableMap<Int, CameraInfo> = mutableMapOf(),
         val permissionRequestInFlight: Boolean = false,
         val hasCameraPermission: Boolean = false,
-        val permissionState: PermissionState? = null,
-        val permissionAction: PermissionAction = PermissionAction.NO_ACTION
+        val multiplePermissionsState: MultiplePermissionsState? = null,
+        val permissionAction: PermissionHandler.Action = PermissionHandler.Action.NO_ACTION
     )
 
     sealed class Event {
@@ -136,12 +163,13 @@ class PhotoViewModel constructor(private val fileManager: FileManager) : ViewMod
         object CloseTapped : Event()
         object FlipTapped : Event()
         object CaptureTapped : Event()
+        object PermissionRequired : Event()
     }
 
     sealed class Effect {
 
         data class ShowMessage(val message: Int = R.string.something_went_wrong) : Effect()
         data class CaptureImage(val filePath: String) : Effect()
-        data class NavigateTo(val destination: ScreenDestinations) : Effect()
+        data class NavigateTo(val route: String) : Effect()
     }
 }

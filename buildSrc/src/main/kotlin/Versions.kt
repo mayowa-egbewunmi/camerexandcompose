@@ -15,4 +15,5 @@ object Versions {
     const val composeActivity = "1.3.0-beta02"
     const val composeNavigation = "2.4.2"
     const val accompanist = "0.23.1"
+    const val coil = "2.1.0"
 }

@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalPermissionsApi::class)
+
 package com.sample.android.screens.recording
 
 import android.Manifest
@@ -5,29 +7,26 @@ import android.net.Uri
 import android.util.Size
 import androidx.camera.core.CameraInfo
 import androidx.camera.core.TorchState
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.sample.android.R
 import com.sample.android.navigateTo
 import com.sample.android.shared.PreviewState
 import com.sample.android.shared.composables.*
-import com.sample.android.shared.composables.CaptureHeader
 import com.sample.android.shared.composables.RequestPermission
 import com.sample.android.shared.utils.LocalVideoCaptureManager
-import com.sample.android.shared.utils.RecordingManager
-import kotlinx.coroutines.flow.collect
+import com.sample.android.shared.utils.VideoCaptureManager
 
-@OptIn(ExperimentalPermissionsApi::class)
 @Composable
 internal fun RecordingScreen(
     navController: NavHostController,
@@ -36,54 +35,45 @@ internal fun RecordingScreen(
     onShowMessage: (message: Int) -> Unit
 ) {
     val state by recordingViewModel.state.collectAsState()
-    val permissionHandler =
-        AccompanistPermissionHandler(permission = Manifest.permission.CAMERA)
-    val permissionHandlerState by permissionHandler.state.collectAsState()
-
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    val listener = remember {
-        object : RecordingManager.RecordingListener {
+    val listener = remember(recordingViewModel) {
+        object : VideoCaptureManager.Listener {
             override fun onInitialised(cameraLensInfo: HashMap<Int, CameraInfo>) {
                 recordingViewModel.onEvent(RecordingViewModel.Event.CameraInitialized(cameraLensInfo))
             }
-
-            override fun recordingStarted() {
-                recordingViewModel.onEvent(RecordingViewModel.Event.RecordingStarted)
-            }
-
             override fun recordingPaused() {
                 recordingViewModel.onEvent(RecordingViewModel.Event.RecordingPaused)
             }
-
             override fun onProgress(progress: Int) {
                 recordingViewModel.onEvent(RecordingViewModel.Event.OnProgress(progress))
             }
-
             override fun recordingCompleted(outputUri: Uri) {
                 recordingViewModel.onEvent(RecordingViewModel.Event.RecordingEnded(outputUri))
             }
-
             override fun onError(throwable: Throwable?) {
                 recordingViewModel.onEvent(RecordingViewModel.Event.Error(throwable))
             }
         }
     }
 
-    val captureManager = remember {
-        RecordingManager.Builder(context)
+    val captureManager = remember(recordingViewModel) {
+        VideoCaptureManager.Builder(context)
             .registerLifecycleOwner(lifecycleOwner)
             .create()
-            .apply { recordingListener = listener }
+            .apply { this.listener = listener }
     }
+
+    val permissions = remember { listOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO) }
+    AccompanistPermissionsState(permissions = permissions, permissionHandler = recordingViewModel.permissionHandler)
 
     LaunchedEffect(recordingViewModel) {
         recordingViewModel.effect.collect {
             when (it) {
                 is RecordingViewModel.Effect.NavigateTo -> navController.navigateTo(it.route)
-                is RecordingViewModel.Effect.RecordVideo -> captureManager.startRecording(it.filePath)
                 is RecordingViewModel.Effect.ShowMessage -> onShowMessage(it.message)
+                is RecordingViewModel.Effect.RecordVideo -> captureManager.startRecording(it.filePath)
                 RecordingViewModel.Effect.PauseRecording -> captureManager.pauseRecording()
                 RecordingViewModel.Effect.ResumeRecording -> captureManager.resumeRecording()
                 RecordingViewModel.Effect.StopRecording -> captureManager.stopRecording()
@@ -93,45 +83,42 @@ internal fun RecordingScreen(
 
     CompositionLocalProvider(LocalVideoCaptureManager provides captureManager) {
         VideoScreenContent(
-            hasPermission = permissionHandlerState.permissionState?.hasPermission ?: false,
+            allPermissionsGranted = state.multiplePermissionsState?.allPermissionsGranted ?: false,
             cameraLens = state.lens,
             torchState = state.torchState,
             hasFlashUnit = state.lensInfo[state.lens]?.hasFlashUnit() ?: false,
             hasDualCamera = state.lensInfo.size > 1,
             recordedLength = state.recordedLength,
             recordingStatus = state.recordingStatus,
-            onEvent = recordingViewModel::onEvent,
-            onPermissionEvent = permissionHandler::onEvent
+            onEvent = recordingViewModel::onEvent
         )
     }
 }
 
 @Composable
 private fun VideoScreenContent(
-    hasPermission: Boolean,
+    allPermissionsGranted: Boolean,
     cameraLens: Int?,
     @TorchState.State torchState: Int,
     hasFlashUnit: Boolean,
     hasDualCamera: Boolean,
     recordedLength: Int,
     recordingStatus: RecordingViewModel.RecordingStatus,
-    onEvent: (RecordingViewModel.Event) -> Unit,
-    onPermissionEvent: (PermissionHandler.Event) -> Unit
+    onEvent: (RecordingViewModel.Event) -> Unit
 ) {
-    if (!hasPermission) {
-        RequestPermission(onClick = { onPermissionEvent(PermissionHandler.Event.PermissionRequired) })
+    if (!allPermissionsGranted) {
+        RequestPermission(message = R.string.request_permissions) {
+            onEvent(RecordingViewModel.Event.PermissionRequired)
+        }
     } else {
         Box(modifier = Modifier.fillMaxSize()) {
             cameraLens?.let {
-                CameraPreview(
-                    lens = it,
-                    torchState = torchState
-                )
+                CameraPreview(lens = it, torchState = torchState)
                 if (recordingStatus == RecordingViewModel.RecordingStatus.Idle) {
                     CaptureHeader(
                         modifier = Modifier.align(Alignment.TopStart),
                         showFlashIcon = hasFlashUnit,
-                        flashMode = torchState,
+                        torchState = torchState,
                         onFlashTapped = { onEvent(RecordingViewModel.Event.FlashTapped) },
                         onCloseTapped = { onEvent(RecordingViewModel.Event.CloseTapped) }
                     )
@@ -153,6 +140,77 @@ private fun VideoScreenContent(
                     onFlipTapped = { onEvent(RecordingViewModel.Event.FlipTapped) }
                 )
             }
+        }
+    }
+}
+
+@Composable
+internal fun CaptureHeader(
+    modifier: Modifier = Modifier,
+    showFlashIcon: Boolean,
+    torchState: Int,
+    onFlashTapped: () -> Unit,
+    onCloseTapped: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .wrapContentHeight()
+            .padding(8.dp)
+            .then(modifier)
+    ) {
+        if (showFlashIcon) {
+            CameraTorchIcon(torchState = torchState, onTapped = onFlashTapped)
+        }
+        CameraCloseIcon(onTapped = onCloseTapped, modifier = Modifier.align(Alignment.TopEnd))
+    }
+}
+
+
+@Composable
+internal fun RecordFooter(
+    modifier: Modifier = Modifier,
+    recordingStatus: RecordingViewModel.RecordingStatus,
+    showFlipIcon: Boolean,
+    onRecordTapped: () -> Unit,
+    onStopTapped: () -> Unit,
+    onPauseTapped: () -> Unit,
+    onResumeTapped: () -> Unit,
+    onFlipTapped: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 24.dp)
+            .then(modifier)
+    ) {
+        when (recordingStatus) {
+            RecordingViewModel.RecordingStatus.Idle -> {
+                CameraRecordIcon(
+                    modifier = Modifier.align(Alignment.Center),
+                    onTapped = onRecordTapped
+                )
+            }
+            RecordingViewModel.RecordingStatus.Paused -> {
+                CameraStopIcon(modifier = Modifier.align(Alignment.Center), onTapped = onStopTapped)
+                CameraPlayIconSmall(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .padding(end = 150.dp), onTapped = onResumeTapped
+                )
+            }
+            RecordingViewModel.RecordingStatus.InProgress -> {
+                CameraStopIcon(modifier = Modifier.align(Alignment.Center), onTapped = onStopTapped)
+                CameraPauseIconSmall(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .padding(end = 140.dp), onTapped = onPauseTapped
+                )
+            }
+        }
+
+        if (showFlipIcon && recordingStatus == RecordingViewModel.RecordingStatus.Idle) {
+            CameraFlipIcon(modifier = Modifier.align(Alignment.CenterEnd), onTapped = onFlipTapped)
         }
     }
 }

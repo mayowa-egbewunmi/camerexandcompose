@@ -7,7 +7,8 @@
     <string name="permission_rationale">App needs permission for demo</string>
     <string name="record_video">Record video</string>
     <string name="take_picture">Take picture</string>
-    <string name="request_permission">Request permission</string>
+    <string name="request_permissions">Request permissions</string>
     <string name="something_went_wrong">Something went wrong</string>
     <string name="captured">Captured</string>
+    <string name="path_is_null">Image path not available</string>
 </resources>

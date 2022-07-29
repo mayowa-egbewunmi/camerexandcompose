@@ -26,9 +26,11 @@ import com.google.android.material.snackbar.Snackbar
 import com.sample.android.screens.landing.EntryScreen
 import com.sample.android.screens.photo.PhotoScreen
 import com.sample.android.screens.photo.PhotoViewModel
+import com.sample.android.screens.photo.PreviewScreen
 import com.sample.android.screens.playback.PlaybackScreen
 import com.sample.android.screens.recording.RecordingScreen
 import com.sample.android.screens.recording.RecordingViewModel
+import com.sample.android.shared.composables.PermissionHandler
 import com.sample.android.shared.utils.FileManager
 import timber.log.Timber
 
@@ -37,13 +39,15 @@ class MainActivity : ComponentActivity() {
 
     private val fileManager = FileManager(this)
 
+    private val permissionHandler = PermissionHandler()
+
     private val viewModelFactory = object : ViewModelProvider.Factory {
         override fun <T : ViewModel?> create(modelClass: Class<T>): T {
             if (modelClass.isAssignableFrom(PhotoViewModel::class.java)) {
-                return PhotoViewModel(fileManager) as T
+                return PhotoViewModel(fileManager, permissionHandler) as T
             }
             if (modelClass.isAssignableFrom(RecordingViewModel::class.java)) {
-                return RecordingViewModel(fileManager) as T
+                return RecordingViewModel(fileManager, permissionHandler) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class")
         }
@@ -79,6 +83,15 @@ class MainActivity : ComponentActivity() {
                         RecordingScreen(navController, viewModelFactory) {
                             showMessage(it)
                         }
+                    }
+                    screen(
+                        ScreenDestinations.Preview.route, arguments = listOf(
+                            navArgument(ScreenDestinations.ARG_FILE_PATH) {
+                                nullable = false
+                                type = NavType.StringType
+                            })
+                    ) {
+                        PreviewScreen(filePath = ScreenDestinations.Preview.getFilePath(it.arguments))
                     }
                     screen(
                         ScreenDestinations.Playback.route, arguments = listOf(
@@ -150,6 +163,16 @@ fun NavHostController.navigateTo(route: String) = navigate(route) {
 sealed class ScreenDestinations(val route: String) {
     object Landing : ScreenDestinations("landing")
     object Photo : ScreenDestinations("photo")
+    object Preview : ScreenDestinations("preview?${ARG_FILE_PATH}={$ARG_FILE_PATH}") {
+        fun createRoute(filePath: String): String {
+            return "preview?${ARG_FILE_PATH}=${filePath}"
+        }
+
+        fun getFilePath(bundle: Bundle?): String {
+            return bundle?.getString(ARG_FILE_PATH)!!
+        }
+    }
+
     object Video : ScreenDestinations("video")
     object Playback : ScreenDestinations("playback?${ARG_FILE_PATH}={$ARG_FILE_PATH}") {
         fun createRoute(filePath: String): String {

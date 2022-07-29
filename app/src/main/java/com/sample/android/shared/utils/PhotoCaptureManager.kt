@@ -18,7 +18,7 @@ import com.sample.android.shared.PreviewState
 import timber.log.Timber
 import java.io.File
 
-class CaptureManager private constructor(private val builder: Builder) :
+class PhotoCaptureManager private constructor(private val builder: Builder) :
     LifecycleEventObserver {
 
     private lateinit var cameraProviderFuture: ListenableFuture<ProcessCameraProvider>
@@ -161,9 +161,9 @@ class CaptureManager private constructor(private val builder: Builder) :
             return this
         }
 
-        fun create(): CaptureManager {
+        fun create(): PhotoCaptureManager {
             requireNotNull(lifecycleOwner) { "Lifecycle owner is not set" }
-            return CaptureManager(this)
+            return PhotoCaptureManager(this)
         }
     }
 
@@ -174,4 +174,4 @@ class CaptureManager private constructor(private val builder: Builder) :
     }
 }
 
-val LocalCaptureManager = compositionLocalOf<CaptureManager> { error("No capture manager found!") }
+val LocalPhotoCaptureManager = compositionLocalOf<PhotoCaptureManager> { error("No capture manager found!") }

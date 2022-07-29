@@ -2,6 +2,7 @@
 
 package com.sample.android.screens.photo
 
+import android.Manifest
 import androidx.camera.core.CameraInfo
 import androidx.camera.core.ImageCapture
 import androidx.compose.foundation.layout.*
@@ -10,17 +11,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.sample.android.R
 import com.sample.android.navigateTo
 import com.sample.android.shared.PreviewState
 import com.sample.android.shared.composables.*
-import com.sample.android.shared.utils.LocalCaptureManager
-import com.sample.android.shared.utils.CaptureManager
-import kotlinx.coroutines.flow.collect
+import com.sample.android.shared.utils.LocalPhotoCaptureManager
+import com.sample.android.shared.utils.PhotoCaptureManager
 
 @Composable
 internal fun PhotoScreen(
@@ -30,15 +32,12 @@ internal fun PhotoScreen(
     onShowMessage: (message: Int) -> Unit
 ) {
     val state by photoViewModel.state.collectAsState()
-    val permissionHandler =
-        AccompanistPermissionHandler(permission = android.Manifest.permission.CAMERA)
-    val permissionHandlerState by permissionHandler.state.collectAsState()
 
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
     val listener = remember {
-        object : CaptureManager.PhotoListener {
+        object : PhotoCaptureManager.PhotoListener {
             override fun onInitialised(cameraLensInfo: HashMap<Int, CameraInfo>) {
                 photoViewModel.onEvent(PhotoViewModel.Event.CameraInitialized(cameraLensInfo))
             }
@@ -53,48 +52,51 @@ internal fun PhotoScreen(
         }
     }
 
-    val captureManager = remember {
-        CaptureManager.Builder(context)
+    val photoCaptureManager = remember {
+        PhotoCaptureManager.Builder(context)
             .registerLifecycleOwner(lifecycleOwner)
             .create()
             .apply { photoListener = listener }
     }
 
+    val permissions = remember { listOf(Manifest.permission.CAMERA) }
+    AccompanistPermissionsState(permissions = permissions, permissionHandler = photoViewModel.permissionHandler)
+
     LaunchedEffect(photoViewModel) {
         photoViewModel.effect.collect {
             when (it) {
-                is PhotoViewModel.Effect.NavigateTo -> navController.navigateTo(it.destination.route)
-                is PhotoViewModel.Effect.CaptureImage -> captureManager.takePhoto(it.filePath)
+                is PhotoViewModel.Effect.NavigateTo -> navController.navigateTo(it.route)
+                is PhotoViewModel.Effect.CaptureImage -> photoCaptureManager.takePhoto(it.filePath)
                 is PhotoViewModel.Effect.ShowMessage -> onShowMessage(it.message)
             }
         }
     }
 
-    CompositionLocalProvider(LocalCaptureManager provides captureManager) {
+    CompositionLocalProvider(LocalPhotoCaptureManager provides photoCaptureManager) {
         PhotoScreenContent(
-            hasPermission = permissionHandlerState.permissionState?.hasPermission ?: false,
+            allPermissionsGranted = state.multiplePermissionsState?.allPermissionsGranted ?: false,
             cameraLens = state.lens,
             flashMode = state.flashMode,
             hasFlashUnit = state.lensInfo[state.lens]?.hasFlashUnit() ?: false,
             hasDualCamera = state.lensInfo.size > 1,
-            onEvent = photoViewModel::onEvent,
-            onPermissionEvent = permissionHandler::onEvent
+            onEvent = photoViewModel::onEvent
         )
     }
 }
 
 @Composable
 private fun PhotoScreenContent(
-    hasPermission: Boolean,
+    allPermissionsGranted: Boolean,
     cameraLens: Int?,
     @ImageCapture.FlashMode flashMode: Int,
     hasFlashUnit: Boolean,
     hasDualCamera: Boolean,
-    onEvent: (PhotoViewModel.Event) -> Unit,
-    onPermissionEvent: (PermissionHandler.Event) -> Unit
+    onEvent: (PhotoViewModel.Event) -> Unit
 ) {
-    if (!hasPermission) {
-        RequestPermission(onClick = { onPermissionEvent(PermissionHandler.Event.PermissionRequired) })
+    if (!allPermissionsGranted) {
+        RequestPermission(message = R.string.request_permissions) {
+            onEvent(PhotoViewModel.Event.PermissionRequired)
+        }
     } else {
         Box(modifier = Modifier.fillMaxSize()) {
             cameraLens?.let {
@@ -120,13 +122,55 @@ private fun PhotoScreenContent(
     }
 }
 
+@Composable
+internal fun CaptureHeader(
+    modifier: Modifier = Modifier,
+    showFlashIcon: Boolean,
+    flashMode: Int,
+    onFlashTapped: () -> Unit,
+    onCloseTapped: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .wrapContentHeight()
+            .padding(8.dp)
+            .then(modifier)
+    ) {
+        if (showFlashIcon) {
+            CameraFlashIcon(flashMode = flashMode, onTapped = onFlashTapped)
+        }
+        CameraCloseIcon(onTapped = onCloseTapped, modifier = Modifier.align(Alignment.TopEnd))
+    }
+}
+
+@Composable
+internal fun CaptureFooter(
+    modifier: Modifier = Modifier,
+    showFlipIcon: Boolean,
+    onCaptureTapped: () -> Unit,
+    onFlipTapped: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 24.dp)
+            .then(modifier)
+    ) {
+        CameraCaptureIcon(modifier = Modifier.align(Alignment.Center), onTapped = onCaptureTapped)
+
+        if (showFlipIcon) {
+            CameraFlipIcon(modifier = Modifier.align(Alignment.CenterEnd), onTapped = onFlipTapped)
+        }
+    }
+}
 
 @Composable
 private fun CameraPreview(
     lens: Int,
     @ImageCapture.FlashMode flashMode: Int
 ) {
-    val captureManager = LocalCaptureManager.current
+    val captureManager = LocalPhotoCaptureManager.current
 
     Box {
         AndroidView(

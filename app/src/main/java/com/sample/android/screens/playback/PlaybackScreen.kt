@@ -91,7 +91,7 @@ private fun PlaybackScreenContent(
             }
             PlaybackViewModel.PlaybackStatus.InProgress -> {
                 CameraPauseIcon(Modifier.align(Alignment.Center)) {
-                    onEvent(PlaybackViewModel.Event.PauseTapped)
+                    onEvent(PlaybackViewModel.Event.PlayTapped)
                 }
             }
             else -> {

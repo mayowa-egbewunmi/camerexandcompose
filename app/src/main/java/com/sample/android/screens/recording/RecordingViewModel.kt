@@ -10,23 +10,37 @@ import androidx.camera.core.TorchState
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.MultiplePermissionsState
 import com.google.accompanist.permissions.PermissionState
 import com.sample.android.R
 import com.sample.android.ScreenDestinations
-import com.sample.android.shared.PermissionAction
+import com.sample.android.shared.composables.PermissionHandler
 import com.sample.android.shared.utils.FileManager
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.lang.IllegalArgumentException
 
-class RecordingViewModel constructor(private val fileManager: FileManager) : ViewModel() {
+class RecordingViewModel constructor(
+    private val fileManager: FileManager,
+    val permissionHandler: PermissionHandler
+) : ViewModel() {
 
     private val _state = MutableStateFlow(State())
     val state: StateFlow<State> = _state
 
     private val _effect = MutableSharedFlow<Effect>()
     val effect: SharedFlow<Effect> = _effect
+
+    init {
+        permissionHandler
+            .state
+            .onEach { handlerState ->
+                _state.update { it.copy(multiplePermissionsState = handlerState.multiplePermissionsState) }
+            }
+            .catch { Timber.e(it) }
+            .launchIn(viewModelScope)
+    }
 
     fun onEvent(event: Event) {
         when (event) {
@@ -40,11 +54,12 @@ class RecordingViewModel constructor(private val fileManager: FileManager) : Vie
             Event.StopTapped -> onStopTapped()
 
             is Event.CameraInitialized -> onCameraInitialized(event.cameraLensInfo)
-            is Event.RecordingStarted -> onRecordingStarted()
             is Event.OnProgress -> onProgress(event.progress)
             is Event.RecordingPaused -> onPaused()
             is Event.RecordingEnded -> onRecordingFinished(event.outputUri)
             is Event.Error -> onError()
+
+            Event.PermissionRequired -> onPermissionRequired()
         }
     }
 
@@ -77,8 +92,12 @@ class RecordingViewModel constructor(private val fileManager: FileManager) : Vie
             ImageCapture.FLASH_MODE_OFF
         }
         if (_state.value.lensInfo[lens] != null) {
-            _state.getAndUpdate { it.copy(lens = lens, flashMode = flashMode) }
+            _state.update { it.copy(lens = lens, flashMode = flashMode) }
         }
+    }
+
+    private fun onPermissionRequired() {
+        permissionHandler.onEvent(PermissionHandler.Event.PermissionRequired)
     }
 
     private fun onPauseTapped() {
@@ -125,10 +144,6 @@ class RecordingViewModel constructor(private val fileManager: FileManager) : Vie
         }
     }
 
-    private fun onRecordingStarted() {
-
-    }
-
     private fun onPaused() {
         _state.update { it.copy(recordingStatus = RecordingStatus.Paused) }
     }
@@ -153,7 +168,7 @@ class RecordingViewModel constructor(private val fileManager: FileManager) : Vie
             }
             _state.update {
                 it.copy(
-                    lens = defaultLens,
+                    lens = it.lens ?: defaultLens,
                     lensInfo = cameraLensInfo
                 )
             }
@@ -164,20 +179,20 @@ class RecordingViewModel constructor(private val fileManager: FileManager) : Vie
         val lens: Int? = null,
         @TorchState.State val torchState: Int = TorchState.OFF,
         @ImageCapture.FlashMode val flashMode: Int = ImageCapture.FLASH_MODE_OFF,
+        val multiplePermissionsState: MultiplePermissionsState? = null,
         val lensInfo: MutableMap<Int, CameraInfo> = mutableMapOf(),
         val recordedLength: Int = 0,
         val recordingStatus: RecordingStatus = RecordingStatus.Idle,
         val permissionRequestInFlight: Boolean = false,
         val hasCameraPermission: Boolean = false,
         val permissionState: PermissionState? = null,
-        val permissionAction: PermissionAction = PermissionAction.NO_ACTION
+        val permissionAction: PermissionHandler.Action = PermissionHandler.Action.NO_ACTION
     )
 
     sealed class Event {
         data class CameraInitialized(val cameraLensInfo: HashMap<Int, CameraInfo>) :
             RecordingViewModel.Event()
 
-        object RecordingStarted : RecordingViewModel.Event()
         data class OnProgress(val progress: Int) : RecordingViewModel.Event()
         object RecordingPaused : RecordingViewModel.Event()
         data class RecordingEnded(val outputUri: Uri) : Event()
@@ -191,6 +206,7 @@ class RecordingViewModel constructor(private val fileManager: FileManager) : Vie
         object PauseTapped : Event()
         object ResumeTapped : Event()
         object StopTapped : Event()
+        object PermissionRequired : RecordingViewModel.Event()
 
     }
 
