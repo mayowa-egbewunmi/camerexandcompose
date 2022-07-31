@@ -30,7 +30,7 @@ class VideoCaptureManager private constructor(private val builder: Builder) :
 
     private lateinit var activeRecording: Recording
 
-    lateinit var listener: Listener
+    var listener: Listener? = null
 
     init {
         getLifecycle().addObserver(this)
@@ -56,7 +56,10 @@ class VideoCaptureManager private constructor(private val builder: Builder) :
      * With this, we can determine if a camera lens is available or not,
      * and what capabilities the lens can support e.g flash support
      */
-    private fun queryCameraInfo(lifecycleOwner: LifecycleOwner, cameraProvider: ProcessCameraProvider) {
+    private fun queryCameraInfo(
+        lifecycleOwner: LifecycleOwner,
+        cameraProvider: ProcessCameraProvider
+    ) {
         val cameraLensInfo = HashMap<Int, CameraInfo>()
         arrayOf(CameraSelector.LENS_FACING_BACK, CameraSelector.LENS_FACING_FRONT).forEach { lens ->
             val cameraSelector = CameraSelector.Builder().requireLensFacing(lens).build()
@@ -69,7 +72,7 @@ class VideoCaptureManager private constructor(private val builder: Builder) :
                 }
             }
         }
-        listener.onInitialised(cameraLensInfo)
+        listener?.onInitialised(cameraLensInfo)
     }
 
     /**
@@ -80,7 +83,7 @@ class VideoCaptureManager private constructor(private val builder: Builder) :
      * Bind the selected camera and any use cases to the lifecycle.
      * Connect the Preview to the PreviewView.
      */
-    private fun showPreview(previewState: PreviewState, cameraPreview: PreviewView): View {
+    fun showPreview(previewState: PreviewState, cameraPreview: PreviewView = getCameraPreview()): View {
         getLifeCycleOwner().lifecycleScope.launchWhenResumed {
             val cameraProvider = cameraProviderFuture.await()
             cameraProvider.unbindAll()
@@ -112,34 +115,8 @@ class VideoCaptureManager private constructor(private val builder: Builder) :
         return cameraPreview
     }
 
-    fun showPreview(previewState: PreviewState): View {
-        return showPreview(previewState, getCameraPreview())
-    }
-
     fun updatePreview(previewState: PreviewState, previewView: View) {
         showPreview(previewState, previewView as PreviewView)
-    }
-
-    @SuppressLint("MissingPermission")
-    fun startRecording(filePath: String) {
-        val outputOptions = FileOutputOptions.Builder(File(filePath)).build()
-        activeRecording = videoCapture.output
-            .prepareRecording(getContext(), outputOptions)
-                .apply {  withAudioEnabled() }
-            .start(ContextCompat.getMainExecutor(getContext()), videoRecordingListener)
-    }
-
-    fun pauseRecording() {
-        activeRecording.pause()
-        listener.recordingPaused()
-    }
-
-    fun resumeRecording() {
-        activeRecording.resume()
-    }
-
-    fun stopRecording() {
-        activeRecording.stop()
     }
 
     private fun getCameraPreview() = PreviewView(getContext()).apply {
@@ -156,18 +133,48 @@ class VideoCaptureManager private constructor(private val builder: Builder) :
 
     private fun getLifeCycleOwner() = builder.lifecycleOwner!!
 
+    @SuppressLint("MissingPermission")
+    fun startRecording(filePath: String) {
+        val outputOptions = FileOutputOptions.Builder(File(filePath)).build()
+        activeRecording = videoCapture.output
+            .prepareRecording(getContext(), outputOptions)
+            .apply { withAudioEnabled() }
+            .start(ContextCompat.getMainExecutor(getContext()), videoRecordingListener)
+    }
+
+    fun pauseRecording() {
+        activeRecording.pause()
+        listener?.recordingPaused()
+    }
+
+    fun resumeRecording() {
+        activeRecording.resume()
+    }
+
+    fun stopRecording() {
+        activeRecording.stop()
+    }
+
     private val videoRecordingListener = Consumer<VideoRecordEvent> { event ->
         when (event) {
             is VideoRecordEvent.Finalize -> if (event.hasError()) {
-                listener.onError(event.cause)
+                listener?.onError(event.cause)
             } else {
-                listener.recordingCompleted(event.outputResults.outputUri)
+                listener?.recordingCompleted(event.outputResults.outputUri)
             }
-            is VideoRecordEvent.Pause -> listener.recordingPaused()
+            is VideoRecordEvent.Pause -> listener?.recordingPaused()
             is VideoRecordEvent.Status -> {
-                listener.onProgress(event.recordingStats.recordedDurationNanos.fromNanoToSeconds())
+                listener?.onProgress(event.recordingStats.recordedDurationNanos.fromNanoToSeconds())
             }
         }
+    }
+
+    interface Listener {
+        fun onInitialised(cameraLensInfo: HashMap<Int, CameraInfo>)
+        fun onProgress(progress: Int)
+        fun recordingPaused()
+        fun recordingCompleted(outputUri: Uri)
+        fun onError(throwable: Throwable?)
     }
 
     class Builder(val context: Context) {
@@ -184,14 +191,6 @@ class VideoCaptureManager private constructor(private val builder: Builder) :
             requireNotNull(lifecycleOwner) { "Lifecycle owner is not set" }
             return VideoCaptureManager(this)
         }
-    }
-
-    interface Listener {
-        fun onInitialised(cameraLensInfo: HashMap<Int, CameraInfo>)
-        fun onProgress(progress: Int)
-        fun recordingPaused()
-        fun recordingCompleted(outputUri: Uri)
-        fun onError(throwable: Throwable?)
     }
 
     private fun Long.fromNanoToSeconds() = (this / (1000 * 1000 * 1000)).toInt()

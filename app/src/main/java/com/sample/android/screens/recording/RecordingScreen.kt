@@ -68,19 +68,6 @@ internal fun RecordingScreen(
     val permissions = remember { listOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO) }
     AccompanistPermissionsState(permissions = permissions, permissionHandler = recordingViewModel.permissionHandler)
 
-    LaunchedEffect(recordingViewModel) {
-        recordingViewModel.effect.collect {
-            when (it) {
-                is RecordingViewModel.Effect.NavigateTo -> navController.navigateTo(it.route)
-                is RecordingViewModel.Effect.ShowMessage -> onShowMessage(it.message)
-                is RecordingViewModel.Effect.RecordVideo -> captureManager.startRecording(it.filePath)
-                RecordingViewModel.Effect.PauseRecording -> captureManager.pauseRecording()
-                RecordingViewModel.Effect.ResumeRecording -> captureManager.resumeRecording()
-                RecordingViewModel.Effect.StopRecording -> captureManager.stopRecording()
-            }
-        }
-    }
-
     CompositionLocalProvider(LocalVideoCaptureManager provides captureManager) {
         VideoScreenContent(
             allPermissionsGranted = state.multiplePermissionsState?.allPermissionsGranted ?: false,
@@ -92,6 +79,19 @@ internal fun RecordingScreen(
             recordingStatus = state.recordingStatus,
             onEvent = recordingViewModel::onEvent
         )
+    }
+
+    LaunchedEffect(recordingViewModel) {
+        recordingViewModel.effect.collect {
+            when (it) {
+                is RecordingViewModel.Effect.NavigateTo -> navController.navigateTo(it.route)
+                is RecordingViewModel.Effect.ShowMessage -> onShowMessage(it.message)
+                is RecordingViewModel.Effect.RecordVideo -> captureManager.startRecording(it.filePath)
+                RecordingViewModel.Effect.PauseRecording -> captureManager.pauseRecording()
+                RecordingViewModel.Effect.ResumeRecording -> captureManager.resumeRecording()
+                RecordingViewModel.Effect.StopRecording -> captureManager.stopRecording()
+            }
+        }
     }
 }
 
