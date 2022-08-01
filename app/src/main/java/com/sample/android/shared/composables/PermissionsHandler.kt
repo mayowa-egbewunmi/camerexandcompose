@@ -30,7 +30,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 
-class PermissionHandler {
+class PermissionsHandler {
 
     private val _state = MutableStateFlow(State())
     val state: StateFlow<State> = _state
@@ -40,43 +40,29 @@ class PermissionHandler {
             Event.PermissionDenied -> onPermissionDenied()
             Event.PermissionDismissTapped -> onPermissionDismissTapped()
             Event.PermissionNeverAskAgain -> onPermissionNeverShowAgain()
-            Event.PermissionRationaleDisplayed -> onPermissionRationaleDisplayed()
             Event.PermissionRationaleOkTapped -> onPermissionRationaleOkTapped()
             Event.PermissionRequired -> onPermissionRequired()
             Event.PermissionSettingsTapped -> onPermissionSettingsTapped()
             Event.PermissionsGranted -> onPermissionGranted()
-            is Event.PermissionStateUpdated -> onPermissionStateUpdated(event.permissionState)
+            is Event.PermissionsStateUpdated -> onPermissionsStateUpdated(event.permissionsState)
         }
     }
 
-    private fun onPermissionStateUpdated(permissionState: MultiplePermissionsState) {
+    private fun onPermissionsStateUpdated(permissionState: MultiplePermissionsState) {
         _state.update { it.copy(multiplePermissionsState = permissionState) }
     }
 
     private fun onPermissionGranted() {
-        _state.update {
-            it.copy(
-                permissionRequestInFlight = false,
-                permissionAction = Action.NO_ACTION
-            )
-        }
+        _state.update { it.copy(permissionAction = Action.NO_ACTION) }
     }
 
     private fun onPermissionDenied() {
-        _state.update {
-            it.copy(
-                permissionRequestInFlight = false,
-                permissionAction = Action.NO_ACTION
-            )
-        }
+        _state.update { it.copy(permissionAction = Action.NO_ACTION) }
     }
 
     private fun onPermissionNeverShowAgain() {
         _state.update {
-            it.copy(
-                permissionAction = Action.SHOW_NEVER_ASK_AGAIN,
-                permissionRequestInFlight = false
-            )
+            it.copy(permissionAction = Action.SHOW_NEVER_ASK_AGAIN)
         }
     }
 
@@ -94,41 +80,21 @@ class PermissionHandler {
         }
     }
 
-    private fun onPermissionRationaleDisplayed() {
-        _state.update { it.copy(permissionRequestInFlight = true) }
-    }
-
     private fun onPermissionRationaleOkTapped() {
-        _state.update {
-            it.copy(
-                permissionAction = Action.REQUEST_PERMISSION,
-                permissionRequestInFlight = true
-            )
-        }
+        _state.update { it.copy(permissionAction = Action.REQUEST_PERMISSION) }
     }
 
     private fun onPermissionDismissTapped() {
-        _state.update {
-            it.copy(
-                permissionAction = Action.NO_ACTION,
-                permissionRequestInFlight = false
-            )
-        }
+        _state.update { it.copy(permissionAction = Action.NO_ACTION) }
     }
 
     private fun onPermissionSettingsTapped() {
-        _state.update {
-            it.copy(
-                permissionAction = Action.NO_ACTION,
-                permissionRequestInFlight = false
-            )
-        }
+        _state.update { it.copy(permissionAction = Action.NO_ACTION) }
     }
 
     data class State(
         val multiplePermissionsState: MultiplePermissionsState? = null,
-        val permissionAction: Action = Action.NO_ACTION,
-        val permissionRequestInFlight: Boolean = false
+        val permissionAction: Action = Action.NO_ACTION
     )
 
     sealed class Event {
@@ -137,11 +103,10 @@ class PermissionHandler {
         object PermissionSettingsTapped : Event()
         object PermissionNeverAskAgain : Event()
         object PermissionDismissTapped : Event()
-        object PermissionRationaleDisplayed : Event()
         object PermissionRationaleOkTapped : Event()
         object PermissionRequired : Event()
 
-        data class PermissionStateUpdated(val permissionState: MultiplePermissionsState) :
+        data class PermissionsStateUpdated(val permissionsState: MultiplePermissionsState) :
             Event()
     }
 
@@ -151,25 +116,22 @@ class PermissionHandler {
 }
 
 @Composable
-fun AccompanistPermissionsState(
-    permissions: List<String>,
-    permissionHandler: PermissionHandler
-) {
+fun HandlePermissionsRequest(permissions: List<String>, permissionsHandler: PermissionsHandler) {
 
-    val state by permissionHandler.state.collectAsState()
-    val permissionStates = rememberMultiplePermissionsState(permissions)
+    val state by permissionsHandler.state.collectAsState()
+    val permissionsState = rememberMultiplePermissionsState(permissions)
 
-    LaunchedEffect(permissionStates) {
-        permissionHandler.onEvent(PermissionHandler.Event.PermissionStateUpdated(permissionStates))
+    LaunchedEffect(permissionsState) {
+        permissionsHandler.onEvent(PermissionsHandler.Event.PermissionsStateUpdated(permissionsState))
         when {
-            permissionStates.allPermissionsGranted -> {
-                permissionHandler.onEvent(PermissionHandler.Event.PermissionsGranted)
+            permissionsState.allPermissionsGranted -> {
+                permissionsHandler.onEvent(PermissionsHandler.Event.PermissionsGranted)
             }
-            permissionStates.permissionRequested && !permissionStates.shouldShowRationale -> {
-                permissionHandler.onEvent(PermissionHandler.Event.PermissionNeverAskAgain)
+            permissionsState.permissionRequested && !permissionsState.shouldShowRationale -> {
+                permissionsHandler.onEvent(PermissionsHandler.Event.PermissionNeverAskAgain)
             }
             else -> {
-                permissionHandler.onEvent(PermissionHandler.Event.PermissionDenied)
+                permissionsHandler.onEvent(PermissionsHandler.Event.PermissionDenied)
             }
         }
     }
@@ -179,14 +141,14 @@ fun AccompanistPermissionsState(
         permissionStates = state.multiplePermissionsState,
         rationaleText = R.string.permission_rationale,
         neverAskAgainText = R.string.permission_rationale,
-        onOkTapped = { permissionHandler.onEvent(PermissionHandler.Event.PermissionRationaleOkTapped) },
-        onSettingsTapped = { permissionHandler.onEvent(PermissionHandler.Event.PermissionSettingsTapped) },
+        onOkTapped = { permissionsHandler.onEvent(PermissionsHandler.Event.PermissionRationaleOkTapped) },
+        onSettingsTapped = { permissionsHandler.onEvent(PermissionsHandler.Event.PermissionSettingsTapped) },
     )
 }
 
 @Composable
 fun HandlePermissionAction(
-    action: PermissionHandler.Action,
+    action: PermissionsHandler.Action,
     permissionStates: MultiplePermissionsState?,
     @StringRes rationaleText: Int,
     @StringRes neverAskAgainText: Int,
@@ -195,18 +157,18 @@ fun HandlePermissionAction(
 ) {
     val context = LocalContext.current
     when (action) {
-        PermissionHandler.Action.REQUEST_PERMISSION -> {
+        PermissionsHandler.Action.REQUEST_PERMISSION -> {
             LaunchedEffect(true) {
                 permissionStates?.launchMultiplePermissionRequest()
             }
         }
-        PermissionHandler.Action.SHOW_RATIONALE -> {
+        PermissionsHandler.Action.SHOW_RATIONALE -> {
             PermissionRationaleDialog(
                 message = stringResource(rationaleText),
                 onOkTapped = onOkTapped
             )
         }
-        PermissionHandler.Action.SHOW_NEVER_ASK_AGAIN -> {
+        PermissionsHandler.Action.SHOW_NEVER_ASK_AGAIN -> {
             ShowGotoSettingsDialog(
                 title = stringResource(R.string.allow_permission),
                 message = stringResource(neverAskAgainText),
@@ -219,7 +181,7 @@ fun HandlePermissionAction(
                 },
             )
         }
-        PermissionHandler.Action.NO_ACTION -> Unit
+        PermissionsHandler.Action.NO_ACTION -> Unit
     }
 }
 

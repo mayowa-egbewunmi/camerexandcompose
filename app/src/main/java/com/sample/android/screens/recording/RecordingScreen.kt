@@ -66,7 +66,7 @@ internal fun RecordingScreen(
     }
 
     val permissions = remember { listOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO) }
-    AccompanistPermissionsState(permissions = permissions, permissionHandler = recordingViewModel.permissionHandler)
+    HandlePermissionsRequest(permissions = permissions, permissionsHandler = recordingViewModel.permissionsHandler)
 
     CompositionLocalProvider(LocalVideoCaptureManager provides captureManager) {
         VideoScreenContent(

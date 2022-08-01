@@ -10,10 +10,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.MultiplePermissionsState
-import com.google.accompanist.permissions.PermissionState
 import com.sample.android.R
 import com.sample.android.ScreenDestinations
-import com.sample.android.shared.composables.PermissionHandler
+import com.sample.android.shared.composables.PermissionsHandler
 import com.sample.android.shared.utils.FileManager
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -22,7 +21,7 @@ import java.lang.IllegalArgumentException
 
 class PhotoViewModel constructor(
     private val fileManager: FileManager,
-    val permissionHandler: PermissionHandler
+    val permissionsHandler: PermissionsHandler
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(State())
@@ -32,7 +31,7 @@ class PhotoViewModel constructor(
     val effect: SharedFlow<Effect> = _effect
 
     init {
-        permissionHandler
+        permissionsHandler
             .state
             .onEach { handlerState ->
                 _state.update { it.copy(multiplePermissionsState = handlerState.multiplePermissionsState) }
@@ -91,7 +90,7 @@ class PhotoViewModel constructor(
     }
 
     private fun onPermissionRequired() {
-        permissionHandler.onEvent(PermissionHandler.Event.PermissionRequired)
+        permissionsHandler.onEvent(PermissionsHandler.Event.PermissionRequired)
     }
 
     private fun onCaptureTapped() {
@@ -149,7 +148,7 @@ class PhotoViewModel constructor(
         val permissionRequestInFlight: Boolean = false,
         val hasCameraPermission: Boolean = false,
         val multiplePermissionsState: MultiplePermissionsState? = null,
-        val permissionAction: PermissionHandler.Action = PermissionHandler.Action.NO_ACTION
+        val permissionAction: PermissionsHandler.Action = PermissionsHandler.Action.NO_ACTION
     )
 
     sealed class Event {

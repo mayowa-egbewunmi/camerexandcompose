@@ -60,7 +60,7 @@ internal fun PhotoScreen(
     }
 
     val permissions = remember { listOf(Manifest.permission.CAMERA) }
-    AccompanistPermissionsState(permissions = permissions, permissionHandler = photoViewModel.permissionHandler)
+    HandlePermissionsRequest(permissions = permissions, permissionsHandler = photoViewModel.permissionsHandler)
 
     LaunchedEffect(photoViewModel) {
         photoViewModel.effect.collect {

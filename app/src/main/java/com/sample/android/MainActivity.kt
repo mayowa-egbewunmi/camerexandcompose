@@ -1,7 +1,6 @@
 package com.sample.android
 
 import android.os.Bundle
-import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -30,24 +29,23 @@ import com.sample.android.screens.photo.PreviewScreen
 import com.sample.android.screens.playback.PlaybackScreen
 import com.sample.android.screens.recording.RecordingScreen
 import com.sample.android.screens.recording.RecordingViewModel
-import com.sample.android.shared.composables.PermissionHandler
+import com.sample.android.shared.composables.PermissionsHandler
 import com.sample.android.shared.utils.FileManager
-import timber.log.Timber
 
 @OptIn(ExperimentalAnimationApi::class)
 class MainActivity : ComponentActivity() {
 
     private val fileManager = FileManager(this)
 
-    private val permissionHandler = PermissionHandler()
+    private val permissionsHandler = PermissionsHandler()
 
     private val viewModelFactory = object : ViewModelProvider.Factory {
         override fun <T : ViewModel?> create(modelClass: Class<T>): T {
             if (modelClass.isAssignableFrom(PhotoViewModel::class.java)) {
-                return PhotoViewModel(fileManager, permissionHandler) as T
+                return PhotoViewModel(fileManager, permissionsHandler) as T
             }
             if (modelClass.isAssignableFrom(RecordingViewModel::class.java)) {
-                return RecordingViewModel(fileManager, permissionHandler) as T
+                return RecordingViewModel(fileManager, permissionsHandler) as T
             }
             throw IllegalArgumentException("Unknown ViewModel class")
         }
